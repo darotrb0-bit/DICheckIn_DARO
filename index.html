@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>កម្មវិធីបង្កើតគណនី</title>
+    <title>កម្មវិធីកត់ត្រាវត្តមាន</title>
     <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- face-api.js for face recognition -->
@@ -144,18 +144,20 @@
             let currentStudent = null;
             let faceMatcher = null;
             let videoInterval = null;
+            let areModelsLoaded = false;
 
             // --- Load Face API Models ---
             async function loadModels() {
+                // Use the standard NPM CDN for better reliability
                 const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
-                // This function runs in the background, so user-facing status isn't critical
-                // but we'll keep the log for debugging.
                 console.log('Loading face recognition models...');
                 try {
-                    await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+                    // Using SsdMobilenetv1 for higher accuracy than TinyFaceDetector
+                    await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
                     await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
                     await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
                     console.log('Models loaded successfully.');
+                    areModelsLoaded = true;
                 } catch (error) {
                     console.error("Error loading models: ", error);
                     errorMessage.textContent = 'បរាជ័យក្នុងការទាញយកម៉ូដែលវិភាគមុខ។';
@@ -182,6 +184,7 @@
                         const className = row.c[13]?.v;
                         let imageUrl = row.c[22]?.v;
 
+                        // Use a proxy for Google Drive images to prevent CORS issues
                         if (imageUrl && imageUrl.includes('drive.google.com')) {
                            imageUrl = `https://images.weserv.nl/?url=${encodeURIComponent(imageUrl.replace('/file/d/', '/uc?export=view&id='))}`;
                         }
@@ -233,12 +236,10 @@
             }
 
             async function handleIdChange() {
-                // Find the student based on the selected ID
                 currentStudent = studentData.find(item => item.id === idInput.value);
                 
                 if (currentStudent) {
                     nameDisplay.textContent = currentStudent.name;
-                    // Automatically start the verification process
                     await startVerification();
                 } else {
                     nameDisplay.textContent = '-';
@@ -249,20 +250,32 @@
                 if (!currentStudent) return;
                 
                 cameraModal.classList.remove('hidden');
+
+                if (!areModelsLoaded) {
+                    cameraStatus.textContent = 'សូមរង់ចាំ, កំពុងទាញយកម៉ូដែល...';
+                    await new Promise(resolve => {
+                        const checkInterval = setInterval(() => {
+                            if (areModelsLoaded) {
+                                clearInterval(checkInterval);
+                                resolve();
+                            }
+                        }, 100);
+                    });
+                }
+                
                 cameraStatus.textContent = 'កំពុងរៀបចំ...';
                 
                 try {
-                    // Create face matcher from student's photo
+                    const detectionOptions = new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 });
                     cameraStatus.textContent = 'កំពុងដំណើរការរូបថតយោង...';
                     const referenceImage = await faceapi.fetchImage(currentStudent.imageUrl);
-                    const referenceDetection = await faceapi.detectSingleFace(referenceImage, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptor();
+                    const referenceDetection = await faceapi.detectSingleFace(referenceImage, detectionOptions).withFaceLandmarks().withFaceDescriptor();
                     
                     if (!referenceDetection) {
                         throw new Error("មិនអាចរកឃើញមុខនៅក្នុងរូបថតយោងបានទេ។");
                     }
                     faceMatcher = new faceapi.FaceMatcher([referenceDetection.descriptor]);
 
-                    // Start camera
                     cameraStatus.textContent = 'កំពុងស្នើសុំកាមេរ៉ា...';
                     const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
                     video.srcObject = stream;
@@ -282,10 +295,13 @@
                 canvasEl.width = videoEl.videoWidth;
                 canvasEl.height = videoEl.videoHeight;
 
-                videoInterval = setInterval(async () => {
-                    if (!faceMatcher) return; // Wait until faceMatcher is ready
+                // Use more stringent options for live video to improve performance
+                const detectionOptions = new faceapi.SsdMobilenetv1Options({ minConfidence: 0.8 });
 
-                    const detections = await faceapi.detectAllFaces(videoEl, new faceapi.TinyFaceDetectorOptions()).withFaceLandmarks().withFaceDescriptors();
+                videoInterval = setInterval(async () => {
+                    if (!faceMatcher) return;
+
+                    const detections = await faceapi.detectAllFaces(videoEl, detectionOptions).withFaceLandmarks().withFaceDescriptors();
                     const context = canvasEl.getContext('2d');
                     context.clearRect(0, 0, canvasEl.width, canvasEl.height);
                     
@@ -296,7 +312,9 @@
                         const bestMatch = faceMatcher.findBestMatch(detections[0].descriptor);
                         cameraStatus.textContent = `ការផ្ទៀងផ្ទាត់... (${(1 - bestMatch.distance).toFixed(2)})`;
                         
-                        if (bestMatch.label !== 'unknown' && bestMatch.distance < 0.5) { // Threshold for a good match
+                        // A distance threshold of 0.5 is good for high confidence. 
+                        // Lower values (e.g., 0.4) are more strict.
+                        if (bestMatch.label !== 'unknown' && bestMatch.distance < 0.5) { 
                            verificationSuccess();
                         }
                     } else {
@@ -320,9 +338,11 @@
                     video.srcObject = null;
                 }
                 cameraModal.classList.add('hidden');
-                // Reset input fields if verification is cancelled
-                idInput.value = '';
-                nameDisplay.textContent = '-';
+                // Reset input fields if verification is cancelled by user
+                if (idInput.value) {
+                    idInput.value = '';
+                    nameDisplay.textContent = '-';
+                }
             }
 
             // --- Event Listeners ---
