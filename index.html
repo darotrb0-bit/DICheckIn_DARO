@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>កម្មវិធីកត់ត្រាវត្តមាន</title>
+    <title>កម្មវិធីបង្កើតគណនី</title>
     <!-- Tailwind CSS for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- face-api.js for face recognition -->
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
-    <!-- Google Fonts for a nice font -->
+    <!-- Google Fonts for a Khmer font -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Kantumruy+Pro:wght@400;500;700&display=swap" rel="stylesheet">
@@ -28,23 +28,45 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        /* Style for the camera modal */
         #cameraModal {
             background-color: rgba(0, 0, 0, 0.6);
         }
+        /* Circular video preview styles */
         #videoContainer {
-            position: relative;
             width: 100%;
-            max-width: 500px;
-            margin: auto;
+            height: 100%;
+            border-radius: 50%;
+            overflow: hidden;
+            position: relative;
+            background-color: #000;
+            transform: scaleX(-1); /* Mirror the video feed */
         }
         #video, #overlay {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            border-radius: 0.5rem;
+            top: 50%;
+            left: 50%;
+            min-width: 100%;
+            min-height: 100%;
+            width: auto;
+            height: auto;
+            transform: translate(-50%, -50%);
+        }
+        #scannerEffect {
+            --scanner-color: #3b82f6;
+            position: absolute;
+            inset: 0;
+            border-radius: 50%;
+            background: conic-gradient(
+                from 180deg at 50% 50%,
+                rgba(59, 130, 246, 0) 0%,
+                var(--scanner-color) 50%,
+                rgba(59, 130, 246, 0) 100%
+            );
+            animation: scanner-spin 2s linear infinite;
+        }
+        @keyframes scanner-spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
     </style>
 </head>
@@ -84,7 +106,7 @@
                 <p id="nameDisplay" class="text-xl font-bold text-indigo-600 mt-1">-</p>
             </div>
         </form>
-         <p id="error-message" class="text-center text-red-500 hidden"></p>
+         <p id="errorMessage" class="text-center text-red-500 hidden"></p>
     </div>
 
     <!-- Home Page UI (hidden by default) -->
@@ -99,11 +121,14 @@
 
     <!-- Camera Verification Modal -->
     <div id="cameraModal" class="fixed inset-0 w-full h-full flex items-center justify-center z-50 hidden">
-        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-lg text-center">
+        <div class="bg-white rounded-lg shadow-xl p-8 w-full max-w-md text-center">
             <h2 class="text-xl font-bold mb-4">សូមដាក់មុខនៅចំកណ្តាល</h2>
-            <div id="videoContainer" class="w-full aspect-video bg-gray-900 rounded-lg mb-4">
-                 <video id="video" autoplay muted playsinline></video>
-                 <canvas id="overlay"></canvas>
+            <div class="relative w-64 h-64 mx-auto mb-4 p-2">
+                <div id="scannerEffect"></div>
+                <div id="videoContainer">
+                    <video id="video" autoplay muted playsinline></video>
+                    <canvas id="overlay"></canvas>
+                </div>
             </div>
             <p id="cameraStatus" class="text-gray-600 mb-4 h-6">កំពុងចាប់ផ្តើមកាមេរ៉ា...</p>
             <button id="closeModalButton" class="bg-red-500 text-white font-bold py-2 px-6 rounded-md hover:bg-red-600">បោះបង់</button>
@@ -118,6 +143,7 @@
             const SHEET_NAME = 'DIList';
             const RANGE = 'E9:AA';
             const URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${SHEET_NAME}&range=${RANGE}`;
+            const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
 
             // --- DOM Elements ---
             const loader = document.getElementById('loader');
@@ -128,55 +154,57 @@
             const nameDisplay = document.getElementById('nameDisplay');
             const classDatalist = document.getElementById('classList');
             const idDatalist = document.getElementById('idList');
-            const errorMessage = document.getElementById('error-message');
+            const errorMessage = document.getElementById('errorMessage');
             const homePage = document.getElementById('homePage');
             const homeName = document.getElementById('homeName');
-
-            // Camera Modal Elements
             const cameraModal = document.getElementById('cameraModal');
             const video = document.getElementById('video');
             const overlay = document.getElementById('overlay');
             const cameraStatus = document.getElementById('cameraStatus');
             const closeModalButton = document.getElementById('closeModalButton');
             
-            // --- State ---
+            // --- State Management ---
             let studentData = [];
             let currentStudent = null;
             let faceMatcher = null;
             let videoInterval = null;
             let areModelsLoaded = false;
+            // -- ដំណោះស្រាយគន្លឹះ៖ អថេរនេះทำหน้าที่เป็น "Lock" ដើម្បីป้องกันការផ្ទៀងផ្ទាត់ซ้อนกัน --
+            let isVerifying = false; 
 
-            // --- Load Face API Models ---
+            // --- Main Functions ---
+
+            // Load Face API Models
             async function loadModels() {
-                // Use the standard NPM CDN for better reliability
-                const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
                 console.log('Loading face recognition models...');
                 try {
-                    // Using SsdMobilenetv1 for higher accuracy than TinyFaceDetector
-                    await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
-                    await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
-                    await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+                    await Promise.all([
+                        faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL),
+                        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+                        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+                    ]);
                     console.log('Models loaded successfully.');
                     areModelsLoaded = true;
                 } catch (error) {
                     console.error("Error loading models: ", error);
-                    errorMessage.textContent = 'បរាជ័យក្នុងការទាញយកម៉ូដែលវិភាគមុខ។';
-                    errorMessage.classList.remove('hidden');
+                    showError('បរាជ័យក្នុងការទាញយកម៉ូដែលវិភាគមុខ។');
                 }
             }
             
+            // Fetch and Parse Data from Google Sheets
             async function fetchData() {
                 try {
                     const response = await fetch(URL);
                     if (!response.ok) throw new Error(`Network response error: ${response.status}`);
                     
                     const text = await response.text();
+                    // This parsing method is specific to Google Sheets gviz API
                     const jsonString = text.substring(text.indexOf('(') + 1, text.lastIndexOf(')'));
                     const data = JSON.parse(jsonString);
 
                     if (data.status === 'error') throw new Error(data.errors.map(e => e.detailed_message).join(', '));
 
-                    // E=0, L=7, R=13, AA=22
+                    // E=col0, L=col7, R=col13, AA=col22
                     studentData = data.table.rows.map(row => {
                         if (!row || !row.c) return null;
                         const id = row.c[0]?.v;
@@ -184,7 +212,7 @@
                         const className = row.c[13]?.v;
                         let imageUrl = row.c[22]?.v;
 
-                        // Use a proxy for Google Drive images to prevent CORS issues
+                        // Use a proxy for Google Drive images to avoid CORS issues
                         if (imageUrl && imageUrl.includes('drive.google.com')) {
                            imageUrl = `https://images.weserv.nl/?url=${encodeURIComponent(imageUrl.replace('/file/d/', '/uc?export=view&id='))}`;
                         }
@@ -193,19 +221,18 @@
                             return { id: String(id), name: String(name), class: String(className), imageUrl };
                         }
                         return null;
-                    }).filter(Boolean);
+                    }).filter(Boolean); // Remove any null entries
 
                     populateClasses();
                     loader.classList.add('hidden');
                     accountForm.classList.remove('hidden');
                 } catch (error) {
                     console.error('Error fetching data:', error);
-                    loader.classList.add('hidden');
-                    errorMessage.textContent = 'បរាជ័យក្នុងការទាញទិន្នន័យ។';
-                    errorMessage.classList.remove('hidden');
+                    showError('បរាជ័យក្នុងការទាញទិន្នន័យពី Google Sheets។');
                 }
             }
 
+            // --- UI Update Functions ---
             function populateClasses() {
                 const uniqueClasses = [...new Set(studentData.map(item => item.class))];
                 classDatalist.innerHTML = '';
@@ -236,6 +263,9 @@
             }
 
             async function handleIdChange() {
+                // -- ដំណោះស្រាយគន្លឹះ៖ ពិនិត្យមើល "Lock"។ បើកំពុងផ្ទៀងផ្ទាត់ សូមកុំทำอะไรទាំងអស់។ --
+                if (isVerifying) return;
+
                 currentStudent = studentData.find(item => item.id === idInput.value);
                 
                 if (currentStudent) {
@@ -246,33 +276,47 @@
                 }
             }
 
+            function showError(message) {
+                loader.classList.add('hidden');
+                accountForm.classList.add('hidden');
+                errorMessage.textContent = message;
+                errorMessage.classList.remove('hidden');
+            }
+
+            // --- Face Verification Logic ---
+
+            function stopCameraStream() {
+                if (videoInterval) {
+                    clearInterval(videoInterval);
+                    videoInterval = null;
+                }
+                if (video.srcObject) {
+                    video.srcObject.getTracks().forEach(track => track.stop());
+                    video.srcObject = null;
+                }
+                // Remove the event listener to prevent memory leaks
+                video.removeEventListener('play', onVideoPlay);
+            }
+
             async function startVerification() {
-                if (!currentStudent) return;
+                if (!currentStudent || !areModelsLoaded) return;
+                
+                // -- ដំណោះស្រាយគន្លឹះ៖ ចាក់សោរ "Lock" ដើម្បីចាប់ផ្តើមការផ្ទៀងផ្ទាត់ --
+                isVerifying = true; 
                 
                 cameraModal.classList.remove('hidden');
-
-                if (!areModelsLoaded) {
-                    cameraStatus.textContent = 'សូមរង់ចាំ, កំពុងទាញយកម៉ូដែល...';
-                    await new Promise(resolve => {
-                        const checkInterval = setInterval(() => {
-                            if (areModelsLoaded) {
-                                clearInterval(checkInterval);
-                                resolve();
-                            }
-                        }, 100);
-                    });
-                }
-                
                 cameraStatus.textContent = 'កំពុងរៀបចំ...';
                 
                 try {
                     const detectionOptions = new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 });
+                    
                     cameraStatus.textContent = 'កំពុងដំណើរការរូបថតយោង...';
                     const referenceImage = await faceapi.fetchImage(currentStudent.imageUrl);
-                    const referenceDetection = await faceapi.detectSingleFace(referenceImage, detectionOptions).withFaceLandmarks().withFaceDescriptor();
+                    const referenceDetection = await faceapi.detectSingleFace(referenceImage, detectionOptions)
+                        .withFaceLandmarks().withFaceDescriptor();
                     
                     if (!referenceDetection) {
-                        throw new Error("មិនអាចរកឃើញមុខនៅក្នុងរូបថតយោងបានទេ។");
+                        throw new Error("រកមិនឃើញមុខនៅក្នុងរូបថតយោងទេ។");
                     }
                     faceMatcher = new faceapi.FaceMatcher([referenceDetection.descriptor]);
 
@@ -283,37 +327,47 @@
 
                 } catch (error) {
                     console.error("Verification Error:", error);
-                    cameraStatus.textContent = `មានបញ្ហា: ${error.message}`;
-                    setTimeout(closeVerificationModal, 3000);
+                    // --- IMPROVED ERROR HANDLING ---
+                    let userMessage = 'មានបញ្ហាក្នុងការបើកកាមេរ៉ា។'; // Default message
+                    if (error.name === 'NotReadableError' || (error.message && error.message.includes('Device in use'))) {
+                        userMessage = 'កាមេរ៉ាកំពុងប្រើដោយកម្មវិធីផ្សេង។ សូមបិទកម្មវិធីនោះសិន។';
+                    } else if (error.name === 'NotFoundError') {
+                        userMessage = 'រកមិនឃើញកាមេរ៉ាទេ។ សូមប្រាកដថាបានភ្ជាប់រួចរាល់។';
+                    } else if (error.name === 'NotAllowedError') {
+                        userMessage = 'មិនមានការអនុញ្ញាតឱ្យប្រើកាមេរ៉ាទេ។ សូមពិនិត្យ Permission។';
+                    } else if (error.message.includes("រកមិនឃើញមុខ")) {
+                        userMessage = "បញ្ហារូបថត៖ រកមិនឃើញមុខក្នុងរូបថតដើមរបស់សិស្ស។";
+                    }
+
+                    cameraStatus.textContent = userMessage;
+                    // Close modal after showing error for 4 seconds to give user time to read.
+                    setTimeout(() => closeVerificationModal(true), 4000);
                 }
             }
 
             function onVideoPlay() {
-                const videoEl = video;
-                const canvasEl = overlay;
-                
-                canvasEl.width = videoEl.videoWidth;
-                canvasEl.height = videoEl.videoHeight;
+                const displaySize = { width: video.videoWidth, height: video.videoHeight };
+                faceapi.matchDimensions(overlay, displaySize);
 
-                // Use more stringent options for live video to improve performance
                 const detectionOptions = new faceapi.SsdMobilenetv1Options({ minConfidence: 0.8 });
 
                 videoInterval = setInterval(async () => {
-                    if (!faceMatcher) return;
+                    // Double check if verification is still active
+                    if (!faceMatcher || !isVerifying) return;
 
-                    const detections = await faceapi.detectAllFaces(videoEl, detectionOptions).withFaceLandmarks().withFaceDescriptors();
-                    const context = canvasEl.getContext('2d');
-                    context.clearRect(0, 0, canvasEl.width, canvasEl.height);
+                    const detections = await faceapi.detectAllFaces(video, detectionOptions)
+                        .withFaceLandmarks().withFaceDescriptors();
                     
-                    if (detections.length > 0) {
-                        const resizedDetections = faceapi.resizeResults(detections, { width: canvasEl.width, height: canvasEl.height });
-                        faceapi.draw.drawDetections(canvasEl, resizedDetections);
+                    const resizedDetections = faceapi.resizeResults(detections, displaySize);
+                    overlay.getContext('2d').clearRect(0, 0, overlay.width, overlay.height);
+                    faceapi.draw.drawDetections(overlay, resizedDetections);
+                    
+                    if (resizedDetections.length > 0) {
+                        const bestMatch = faceMatcher.findBestMatch(resizedDetections[0].descriptor);
+                        const confidence = (1 - bestMatch.distance).toFixed(2);
+                        cameraStatus.textContent = `កំពុងផ្ទៀងផ្ទាត់... (${confidence})`;
                         
-                        const bestMatch = faceMatcher.findBestMatch(detections[0].descriptor);
-                        cameraStatus.textContent = `ការផ្ទៀងផ្ទាត់... (${(1 - bestMatch.distance).toFixed(2)})`;
-                        
-                        // A distance threshold of 0.5 is good for high confidence. 
-                        // Lower values (e.g., 0.4) are more strict.
+                        // Check for a confident match (distance < 0.5 is a good threshold)
                         if (bestMatch.label !== 'unknown' && bestMatch.distance < 0.5) { 
                            verificationSuccess();
                         }
@@ -324,35 +378,36 @@
             }
 
             function verificationSuccess() {
-                clearInterval(videoInterval);
-                closeVerificationModal();
+                cameraStatus.textContent = 'ជោគជ័យ!';
                 appContainer.classList.add('hidden');
                 homeName.textContent = currentStudent.name;
                 homePage.classList.remove('hidden');
+                // Close modal gracefully
+                setTimeout(() => closeVerificationModal(false), 1000);
             }
 
-            function closeVerificationModal() {
-                clearInterval(videoInterval);
-                if (video.srcObject) {
-                    video.srcObject.getTracks().forEach(track => track.stop());
-                    video.srcObject = null;
-                }
+            function closeVerificationModal(resetInputs = true) {
+                stopCameraStream();
                 cameraModal.classList.add('hidden');
-                // Reset input fields if verification is cancelled by user
-                if (idInput.value) {
+                
+                // -- ដំណោះស្រាយគន្លឹះ៖ ដោះសោរ "Lock" វិញនៅពេលจบដំណើរការ --
+                isVerifying = false; 
+                
+                if (resetInputs && idInput.value) {
                     idInput.value = '';
                     nameDisplay.textContent = '-';
+                    currentStudent = null;
                 }
             }
 
             // --- Event Listeners ---
             classInput.addEventListener('change', handleClassChange);
             idInput.addEventListener('change', handleIdChange);
-            closeModalButton.addEventListener('click', closeVerificationModal);
+            closeModalButton.addEventListener('click', () => closeVerificationModal(true));
 
             // --- Initial Load ---
-            loadModels();
-            fetchData();
+            // Load models and data concurrently for faster startup
+            Promise.all([loadModels(), fetchData()]);
         });
     </script>
 
