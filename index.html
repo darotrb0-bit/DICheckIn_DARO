@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>កម្មវិធីសម្គាល់អត្តសញ្ញាណ</title>
     <!-- Tailwind CSS សម្រាប់រចនាទំព័រ -->
-    <script src="https://cdn.tailwindcss.com"></script> 
-    <!-- face-api.js សម្រាប់វិភាគមុខ --->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- face-api.js សម្រាប់វិភាគមុខ -->
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
     <!-- Google Fonts សម្រាប់ហ្វុងខ្មែរ -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -15,6 +15,7 @@
     <style>
         body {
             font-family: 'Kantumruy Pro', sans-serif;
+            background-color: #f0f2f5;
         }
         .loader {
             border: 4px solid #f3f3f3; border-radius: 50%; border-top: 4px solid #3498db;
@@ -43,9 +44,34 @@
             animation: laser-scan-line 2.5s ease-in-out infinite;
         }
         @keyframes laser-scan-line { 0% { left: 15%; } 50% { left: 85%; } 100% { left: 15%; } }
+        
+        /* រចនាប័ទ្មសម្រាប់ប៊ូតុង Check in/out ថ្មី */
+        .attendance-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 1.5rem 1rem;
+            border-radius: 1rem;
+            font-weight: 700;
+            transition: all 0.2s ease-in-out;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border: 1px solid transparent;
+        }
+        .attendance-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 7px 14px rgba(0,0,0,0.07);
+        }
+        .attendance-btn:disabled {
+            background-color: #e5e7eb;
+            color: #9ca3af;
+            cursor: not-allowed;
+            opacity: 0.7;
+        }
     </style>
 </head>
-<body class="bg-gray-100 flex justify-center min-h-screen p-4 sm:p-0 sm:items-center">
+<body class="flex justify-center min-h-screen p-4 sm:items-center">
 
     <!-- ទម្រង់ចូល (លាក់ទុកដំបូង) -->
     <div id="appContainer" class="w-full max-w-md bg-white rounded-lg shadow-xl p-8 space-y-6 hidden">
@@ -81,18 +107,50 @@
         <p class="text-gray-500">កំពុងរៀបចំ...</p>
     </div>
 
-    <!-- ផ្ទាំងវត្តមាន -->
-    <div id="attendancePage" class="w-full max-w-md bg-white rounded-lg shadow-xl p-8 space-y-4 text-center hidden">
-        <h1 class="text-2xl font-bold text-gray-800">ប្រព័ន្ធកត់ត្រាវត្តមាន</h1>
-        <p class="text-gray-600 text-lg">សូមស្វាគមន៍, <span id="attendanceName" class="font-bold"></span>!</p>
-        <div id="statusContainer" class="bg-gray-100 p-3 rounded-md min-h-[40px] flex items-center justify-center">
-            <p id="statusMessage" class="text-gray-700 font-medium">កំពុងរៀបចំ...</p>
+    <!-- NEW: ផ្ទាំងវត្តមានរចនាថ្មី -->
+    <div id="attendancePage" class="hidden w-full max-w-md">
+        <div class="bg-white rounded-2xl shadow-xl p-6 sm:p-8 space-y-6">
+            <!-- Header with Avatar -->
+            <div class="flex flex-col items-center space-y-2">
+                <div class="w-20 h-20 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center text-3xl font-bold ring-4 ring-white shadow-md">
+                    <span id="userInitial"></span>
+                </div>
+                <p class="text-gray-600 text-lg pt-2">សូមស្វាគមន៍</p>
+                <h1 class="text-2xl font-bold text-gray-800" id="attendanceName"></h1>
+            </div>
+
+            <!-- Status Display -->
+            <div id="statusContainer" class="bg-gray-100 p-4 rounded-lg min-h-[50px] flex items-center justify-center">
+                <p id="statusMessage" class="text-gray-700 font-medium text-center"></p>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="grid grid-cols-2 gap-4 pt-2">
+                <!-- Check In Button -->
+                <button id="checkInButton" class="attendance-btn bg-green-50 border-green-200 text-green-700">
+                    <svg class="w-10 h-10" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
+                    </svg>
+                    <span class="text-lg">Check In</span>
+                </button>
+                <!-- Check Out Button -->
+                <button id="checkOutButton" class="attendance-btn bg-red-50 border-red-200 text-red-700">
+                    <svg class="w-10 h-10" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m-3 0l-3-3m0 0l3-3m-3 3H9" />
+                    </svg>
+                    <span class="text-lg">Check Out</span>
+                </button>
+            </div>
         </div>
-        <div class="grid grid-cols-2 gap-4 pt-4">
-            <button id="checkInButton" class="bg-green-500 text-white font-bold py-3 px-4 rounded-md hover:bg-green-600 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed">Check In</button>
-            <button id="checkOutButton" class="bg-orange-500 text-white font-bold py-3 px-4 rounded-md hover:bg-orange-600 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed">Check Out</button>
+        <!-- Logout Button (separate, below the card) -->
+        <div class="text-center mt-6">
+            <button id="logoutButton" class="text-gray-500 hover:text-red-500 font-medium transition-colors flex items-center justify-center mx-auto gap-2">
+                 <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" >
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
+                </svg>
+                <span>ចាកចេញ</span>
+            </button>
         </div>
-        <button id="logoutButton" class="mt-6 w-full bg-red-500 text-white font-bold py-2 px-6 rounded-md hover:bg-red-600 transition-colors">ចាកចេញ</button>
     </div>
 
     <!-- Modal សម្រាប់ផ្ទៀងផ្ទាត់កាមេរ៉ា -->
@@ -114,7 +172,19 @@
     <div id="liveTrackingWarning" class="hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-40 p-8 text-center">
         <div class="bg-white p-6 rounded-lg shadow-2xl max-w-sm">
             <h3 class="text-lg font-bold text-red-600 mb-2">!!! ការព្រមាន !!!</h3>
-            <p class="text-gray-800 font-semibold">"ករណីប្អូនបិទ Location ឬ បិទ WIFI (Internet) រយៈពេល ១៤វិនាទី គឺស្មើនឹងអវត្តមាន"</p>
+            <p class="text-gray-800 font-semibold">"ប្អូនបាន Check in ជោគជ័យហើយ ប៉ុន្តែក្នុងករណីប្អូនបិទ Location ឬ បិទ WIFI (Internet) ឬប្អូនបានឈានជើងចាកចេញពីអគារ DI ក្នុងម៉ោងធ្វើការរយៈពេល ១៤វិនាទីគឺស្មើនិងអវត្តមានដោយស្វ័យប្រវត្តិ"</p>
+        </div>
+    </div>
+    
+    <!-- NEW: Logout Confirmation Modal -->
+    <div id="logoutModal" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm text-center transform transition-all scale-95 opacity-0" id="logoutModalContent">
+            <h3 class="text-lg font-bold text-gray-800 mb-4">បញ្ជាក់ការចាកចេញ</h3>
+            <p class="text-gray-600 mb-6">តើអ្នកពិតជាចង់ចាកចេញមែនទេ?</p>
+            <div class="flex justify-center gap-4">
+                <button id="cancelLogoutButton" class="px-6 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300 transition-colors">បោះបង់</button>
+                <button id="confirmLogoutButton" class="px-6 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors">យល់ព្រម</button>
+            </div>
         </div>
     </div>
 
@@ -157,21 +227,21 @@
             const closeModalButton = document.getElementById('closeModalButton');
             const attendancePage = document.getElementById('attendancePage');
             const attendanceName = document.getElementById('attendanceName');
+            const userInitial = document.getElementById('userInitial');
             const statusMessage = document.getElementById('statusMessage');
             const checkInButton = document.getElementById('checkInButton');
             const checkOutButton = document.getElementById('checkOutButton');
             const logoutButton = document.getElementById('logoutButton');
             const liveTrackingWarning = document.getElementById('liveTrackingWarning');
+            const logoutModal = document.getElementById('logoutModal');
+            const logoutModalContent = document.getElementById('logoutModalContent');
+            const cancelLogoutButton = document.getElementById('cancelLogoutButton');
+            const confirmLogoutButton = document.getElementById('confirmLogoutButton');
 
             // --- ការគ្រប់គ្រង State ---
-            let studentData = [];
-            let currentStudent = null;
-            let faceMatcher = null;
-            let areModelsLoaded = false;
-            let isVerifying = false; 
-            let liveWatchId = null;
-            let disconnectionTimer = null;
-            let isCurrentlyTracking = false;
+            let studentData = []; let currentStudent = null; let faceMatcher = null;
+            let areModelsLoaded = false; let isVerifying = false; 
+            let liveWatchId = null; let disconnectionTimer = null; let isCurrentlyTracking = false;
 
             // --- ការគ្រប់គ្រង Session ---
             async function checkForSavedSession() {
@@ -185,16 +255,9 @@
                         const fullStudentObject = studentData.find(s => s.id === studentFromLocal.id);
                         if (fullStudentObject) {
                             await showAttendancePage(fullStudentObject);
-                        } else {
-                            logout();
-                        }
-                    } catch (e) {
-                        console.error("Failed to restore session:", e);
-                        logout();
-                    }
-                } else {
-                    initializeLoginForm();
-                }
+                        } else { logout(); }
+                    } catch (e) { console.error("Failed to restore session:", e); logout(); }
+                } else { initializeLoginForm(); }
             }
             
             async function initializeLoginForm() {
@@ -209,6 +272,9 @@
                 errorContainer.classList.add('hidden');
                 currentStudent = student;
                 attendanceName.textContent = student.name;
+                if (student.name) {
+                    userInitial.textContent = student.name.trim().charAt(0).toUpperCase();
+                }
                 attendancePage.classList.remove('hidden');
                 await updateButtonStates();
             }
@@ -491,11 +557,8 @@
                     
                     if (attendanceStatus.checkIn && !attendanceStatus.checkOut) {
                         if (!isCurrentlyTracking) startLiveTracking();
-                        if (!isCheckOutTime) {
-                            liveTrackingWarning.classList.remove('hidden');
-                        } else {
-                            liveTrackingWarning.classList.add('hidden');
-                        }
+                        // បង្ហាញសារព្រមានជានិច្ចរហូតដល់ Check Out
+                        liveTrackingWarning.classList.remove('hidden');
                     } else {
                         stopLiveTracking();
                     }
@@ -604,8 +667,18 @@
                 window.addEventListener('offline', handleDisconnection);
                 if ('geolocation' in navigator) {
                     liveWatchId = navigator.geolocation.watchPosition(
-                        () => handleReconnection(), () => handleDisconnection(),
-                        { enableHighAccuracy: false, timeout: 20000, maximumAge: 0 }
+                        (position) => {
+                            // NEW: Check location on every update
+                            const { latitude, longitude } = position.coords;
+                            const distance = calculateDistance(TARGET_LAT, TARGET_LON, latitude, longitude);
+                            if (distance > MAX_DISTANCE_METERS) {
+                                handleDisconnection(); // Trigger if user leaves the area
+                            } else {
+                                handleReconnection(); // Reconnect if user re-enters the area
+                            }
+                        }, 
+                        () => handleDisconnection(),
+                        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
                     );
                 }
             }
@@ -638,15 +711,37 @@
                     setTimeout(updateButtonStates, 2000);
                 }
             }
+            
+            // --- Logout Modal Logic ---
+            function showLogoutModal() {
+                logoutModal.classList.remove('hidden');
+                setTimeout(() => {
+                    logoutModalContent.classList.remove('scale-95', 'opacity-0');
+                    logoutModalContent.classList.add('scale-100', 'opacity-100');
+                }, 10);
+            }
+
+            function hideLogoutModal() {
+                 logoutModalContent.classList.add('scale-95', 'opacity-0');
+                 logoutModalContent.classList.remove('scale-100', 'opacity-100');
+                 setTimeout(() => {
+                    logoutModal.classList.add('hidden');
+                }, 200);
+            }
 
             // --- Event Listeners ---
             classInput.addEventListener('change', handleClassChange);
             idInput.addEventListener('change', handleIdChange);
             closeModalButton.addEventListener('click', () => closeVerificationModal(true));
             retryButton.addEventListener('click', handleRetry);
-            logoutButton.addEventListener('click', logout);
+            logoutButton.addEventListener('click', showLogoutModal);
             checkInButton.addEventListener('click', () => handleAttendanceClick('Check In'));
             checkOutButton.addEventListener('click', () => handleAttendanceClick('Check Out'));
+            cancelLogoutButton.addEventListener('click', hideLogoutModal);
+            confirmLogoutButton.addEventListener('click', () => {
+                hideLogoutModal();
+                logout();
+            });
             
             // --- ចាប់ផ្តើមដំណើរការ ---
             checkForSavedSession();
