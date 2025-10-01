@@ -484,7 +484,7 @@
             function isTimeInWindow(now, startStr, endStr) {
                 const startTime = parseTime(now, startStr);
                 const endTime = parseTime(now, endStr);
-                return now >= startTime && now <= endTime;
+                return startTime && endTime && now >= startTime && now <= endTime;
             }
             
             function isDuringBreakTime() {
@@ -604,7 +604,11 @@
                         const { latitude, longitude } = position.coords;
                         const isInArea = isPointInPolygon([latitude, longitude], allowedAreaCoords);
                         if (isInArea) {
-                            const data = { action: type.replace(' ', ''), studentId: currentStudent.id, schedule: currentStudent.schedule[new Date().getDay()] || 'N/A' };
+                            const now = new Date();
+                            const dayMapping = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+                            const todaySchedule = currentStudent.schedule[dayMapping[now.getDay()]] || 'N/A';
+                            const data = { action: type.replace(' ', ''), studentId: currentStudent.id, schedule: todaySchedule };
+                            
                             const result = await postAttendanceData(data);
                             if (result.status === 'success') {
                                 if (type === 'Check Out') stopLiveTracking();
