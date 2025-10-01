@@ -231,6 +231,7 @@
             let areModelsLoaded = false; let isVerifying = false; 
             let liveWatchId = null; let disconnectionTimer = null; let isCurrentlyTracking = false;
             let telegramAlertSent = false;
+            let disconnectionLogged = false;
 
             // --- Core Functions ---
             async function checkForSavedSession() {
@@ -647,8 +648,10 @@
 
             function startLiveTracking() {
                 if (isCurrentlyTracking) return;
-                isCurrentlyTracking = true; telegramAlertSent = false;
-                stopLiveTracking();
+                isCurrentlyTracking = true; 
+                telegramAlertSent = false;
+                disconnectionLogged = false;
+                stopLiveTracking(); // Clear old trackers just in case
                 window.addEventListener('offline', () => handleDisconnection('signal', null));
                 liveWatchId = navigator.geolocation.watchPosition(
                     (position) => {
@@ -679,17 +682,22 @@
                 if (disconnectionTimer) return;
                 statusMessage.innerHTML = `<span class="text-red-500 font-bold">ព្រមាន៖ ${reason === 'geofence' ? 'បានចាកចេញពីតំបន់' : 'បាត់បង់សញ្ញា'}!</span>`;
                 disconnectionTimer = setTimeout(async () => {
-                    statusMessage.textContent = 'Check In ត្រូវបានលុបចោល។';
-                    const detail = `${reason === 'geofence' ? 'ចាកចេញពីតំបន់' : 'បាត់សញ្ញា'} >14s នៅម៉ោង ${new Date().toLocaleTimeString()}`;
-                    const data = { action: 'MarkAbsent', studentId: currentStudent.id, remark: 'អវត្តមាន', detail: detail };
-                    await postAttendanceData(data);
-                    stopLiveTracking();
-                    setTimeout(updateButtonStates, 2000);
+                    if (!disconnectionLogged) {
+                        statusMessage.textContent = 'ការចាកចេញពីតំបន់ត្រូវបានកត់ត្រាទុក។';
+                        const detail = `${reason === 'geofence' ? 'ចាកចេញពីតំបន់' : 'បាត់សញ្ញា'} >14s នៅម៉ោង ${new Date().toLocaleTimeString()}`;
+                        const data = { action: 'LogDisconnection', studentId: currentStudent.id, detail: detail };
+                        await postAttendanceData(data);
+                        disconnectionLogged = true;
+                    }
+                    clearTimeout(disconnectionTimer);
+                    disconnectionTimer = null;
+                     setTimeout(updateButtonStates, 2000);
                 }, 14000);
             }
             
             function handleReconnection() {
                 telegramAlertSent = false;
+                disconnectionLogged = false;
                 if (disconnectionTimer) {
                     clearTimeout(disconnectionTimer);
                     disconnectionTimer = null;
