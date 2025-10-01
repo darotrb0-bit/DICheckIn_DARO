@@ -292,7 +292,7 @@
             
             async function fetchData() {
                 try {
-                    const response = await fetch(URL);
+                    const response = await fetch(`${URL}&t=${new Date().getTime()}`);
                     if (!response.ok) throw new Error(`Network error: ${response.status}`);
                     const text = await response.text();
                     const jsonString = text.substring(text.indexOf('(') + 1, text.lastIndexOf(')'));
@@ -443,8 +443,8 @@
                     
                     const row = data.table.rows.find(r => r.c && String(r.c[2]?.v) === String(studentId));
                     if (row) {
-                        const approvalStatus = row.c[8]?.v; // Column I
-                        const leaveType = row.c[6]?.v;      // Column G
+                        const approvalStatus = row.c[8]?.v;
+                        const leaveType = row.c[6]?.v;
                         if (approvalStatus === 'អនុញ្ញាត') { return leaveType || null; }
                     }
                     return null;
@@ -452,6 +452,59 @@
                     console.error(`Failed to fetch or parse data from ${sheetName}:`, error);
                     return { error: true, message: `Could not load data from ${sheetName}.` };
                 }
+            }
+            
+            function getTimeWindowsForSchedule(scheduleType, dayOfWeek) {
+                const isFriday = dayOfWeek === 5;
+                const trimmedSchedule = scheduleType ? String(scheduleType).trim() : null;
+                switch(trimmedSchedule) {
+                    case 'ពេញម៉ោង': return { checkInStart: '7:00AM', checkInEnd: '10:04AM', checkOutStart: isFriday ? '3:15PM' : '5:30PM', checkOutEnd: '8:04PM' };
+                    case 'មួយព្រឹក': return { checkInStart: '7:00AM', checkInEnd: '10:04AM', checkOutStart: '11:30AM', checkOutEnd: '1:04PM' };
+                    case 'មួយរសៀល': return { checkInStart: '11:00AM', checkInEnd: '1:44PM', checkOutStart: isFriday ? '3:15PM' : '5:30PM', checkOutEnd: '8:04PM' };
+                    case 'ពេលយប់': return { checkInStart: '5:45PM', checkInEnd: '6:44PM', checkOutStart: '8:55PM', checkOutEnd: '10:04PM' };
+                    default: 
+                        if (scheduleType) { console.warn(`Unknown schedule type: '${scheduleType}'`); }
+                        return null;
+                }
+            }
+            
+            function parseTime(now, timeStr) {
+                const date = new Date(now);
+                const match = timeStr.match(/(\d+):(\d+)(AM|PM)/i);
+                if (!match) return null;
+                let [_, hours, minutes, modifier] = match;
+                hours = parseInt(hours, 10);
+                minutes = parseInt(minutes, 10);
+                if (modifier.toUpperCase() === 'PM' && hours < 12) hours += 12;
+                if (modifier.toUpperCase() === 'AM' && hours === 12) hours = 0;
+                date.setHours(hours, minutes, 0, 0);
+                return date;
+            };
+
+            function isTimeInWindow(now, startStr, endStr) {
+                const startTime = parseTime(now, startStr);
+                const endTime = parseTime(now, endStr);
+                return now >= startTime && now <= endTime;
+            }
+            
+            function isDuringBreakTime() {
+                const now = new Date();
+                if (isTimeInWindow(now, '9:30AM', '9:50AM')) return true;
+                if (isTimeInWindow(now, '11:30AM', '12:30PM')) return true;
+                return false;
+            }
+
+            function isPointInPolygon(point, polygon) {
+                let [latitude, longitude] = point;
+                let inside = false;
+                for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+                    let [xi, yi] = polygon[i];
+                    let [xj, yj] = polygon[j];
+                    let intersect = ((yi > longitude) != (yj > longitude))
+                        && (latitude < (xj - xi) * (longitude - yi) / (yj - yi) + xi);
+                    if (intersect) inside = !inside;
+                }
+                return inside;
             }
             
             async function getAttendanceStatus(studentId) {
@@ -501,6 +554,7 @@
                     } else { stopLiveTracking(); }
 
                     const timeWindows = getTimeWindowsForSchedule(todaySchedule, now.getDay());
+                    
                     if (cannotCheckIn && cannotCheckOut) { status = 'អ្នកបានសុំច្បាប់មួយថ្ងៃ។'; }
                     else if (!timeWindows) { status = 'ថ្ងៃនេះមិនមានកាលវិភាគទេ។'; }
                     else {
@@ -526,7 +580,7 @@
                     checkOutButton.disabled = true;
                 }
             }
-
+            
             function setButtonLoading(type, isLoading) {
                 const button = type === 'Check In' ? checkInButton : checkOutButton;
                 const content = type === 'Check In' ? checkInContent : checkOutContent;
@@ -571,19 +625,89 @@
                 );
             }
             
-            function getTimeWindowsForSchedule(scheduleType, dayOfWeek) { /* ... */ }
-            function parseTime(now, timeStr) { /* ... */ }
-            function isTimeInWindow(now, startStr, endStr) { /* ... */ }
-            function isDuringBreakTime() { /* ... */ }
-            function isPointInPolygon(point, polygon) { /* ... */ }
-            async function postAttendanceData(data) { /* ... */ }
-            function startLiveTracking() { /* ... */ }
-            function stopLiveTracking() { /* ... */ }
-            function handleDisconnection(reason, position) { /* ... */ }
-            function handleReconnection() { /* ... */ }
-            async function sendTelegramAlert(position) { /* ... */ }
-            function showLogoutModal() { /* ... */ }
-            function hideLogoutModal() { /* ... */ }
+            async function postAttendanceData(data) {
+                if (data.action !== 'sendTelegramAlert') statusMessage.textContent = 'កំពុងរក្សាទុក...';
+                try {
+                    if (APPS_SCRIPT_URL === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL') throw new Error("URL is not configured.");
+                    const response = await fetch(APPS_SCRIPT_URL, {
+                        method: 'POST', body: JSON.stringify(data),
+                        headers: { 'Content-Type': 'text/plain;charset=utf-8' }
+                    });
+                    if (!response.ok) throw new Error(`Server error: ${response.status}`);
+                    return await response.json();
+                } catch (error) {
+                    if (data.action !== 'sendTelegramAlert') statusMessage.textContent = 'ការរក្សាទុកបរាជ័យ។';
+                    return { status: 'error', message: error.message };
+                }
+            }
+
+            function startLiveTracking() {
+                if (isCurrentlyTracking) return;
+                isCurrentlyTracking = true; telegramAlertSent = false;
+                stopLiveTracking();
+                window.addEventListener('offline', () => handleDisconnection('signal', null));
+                liveWatchId = navigator.geolocation.watchPosition(
+                    (position) => {
+                        if (isDuringBreakTime()) { handleReconnection(); return; }
+                        const { latitude, longitude } = position.coords;
+                        if (!isPointInPolygon([latitude, longitude], allowedAreaCoords)) {
+                            handleDisconnection('geofence', position);
+                        } else { handleReconnection(); }
+                    }, 
+                    (error) => handleDisconnection('signal', null),
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                );
+            }
+
+            function stopLiveTracking() {
+                isCurrentlyTracking = false;
+                liveTrackingWarning.classList.add('hidden');
+                if (liveWatchId) { navigator.geolocation.clearWatch(liveWatchId); liveWatchId = null; }
+                if (disconnectionTimer) { clearTimeout(disconnectionTimer); disconnectionTimer = null; }
+                window.removeEventListener('offline', () => handleDisconnection('signal', null));
+            }
+
+            function handleDisconnection(reason, position) {
+                if (reason === 'geofence' && position && !telegramAlertSent) {
+                    sendTelegramAlert(position);
+                    telegramAlertSent = true;
+                }
+                if (disconnectionTimer) return;
+                statusMessage.innerHTML = `<span class="text-red-500 font-bold">ព្រមាន៖ ${reason === 'geofence' ? 'បានចាកចេញពីតំបន់' : 'បាត់បង់សញ្ញា'}!</span>`;
+                disconnectionTimer = setTimeout(async () => {
+                    statusMessage.textContent = 'Check In ត្រូវបានលុបចោល។';
+                    const detail = `${reason === 'geofence' ? 'ចាកចេញពីតំបន់' : 'បាត់សញ្ញា'} >14s នៅម៉ោង ${new Date().toLocaleTimeString()}`;
+                    const data = { action: 'MarkAbsent', studentId: currentStudent.id, remark: 'អវត្តមាន', detail: detail };
+                    await postAttendanceData(data);
+                    stopLiveTracking();
+                    setTimeout(updateButtonStates, 2000);
+                }, 14000);
+            }
+            
+            function handleReconnection() {
+                telegramAlertSent = false;
+                if (disconnectionTimer) {
+                    clearTimeout(disconnectionTimer);
+                    disconnectionTimer = null;
+                    statusMessage.textContent = 'ការតភ្ជាប់បានប្រសើរឡើងវិញ។';
+                    setTimeout(updateButtonStates, 2000);
+                }
+            }
+            
+            async function sendTelegramAlert(position) {
+                const { latitude, longitude } = position.coords;
+                const data = { action: 'sendTelegramAlert', studentName: currentStudent.name, latitude, longitude };
+                postAttendanceData(data); // Fire and forget
+            }
+
+            function showLogoutModal() {
+                logoutModal.classList.remove('hidden');
+                setTimeout(() => logoutModalContent.classList.remove('scale-95', 'opacity-0'), 10);
+            }
+            function hideLogoutModal() {
+                logoutModalContent.classList.add('scale-95', 'opacity-0');
+                setTimeout(() => logoutModal.classList.add('hidden'), 200);
+            }
 
             // --- Event Listeners ---
             classInput.addEventListener('change', handleClassChange);
