@@ -61,6 +61,11 @@
         .attendance-btn:disabled {
             background-color: #e5e7eb; color: #9ca3af; cursor: not-allowed; opacity: 0.7;
         }
+
+        .fade-in-up { animation: fadeInUp 0.5s ease-out forwards; opacity: 0; transform: translateY(20px); }
+        @keyframes fadeInUp { to { opacity: 1; transform: translateY(0); } }
+
+        #countdownCircle { transition: stroke-dashoffset 0.5s linear; }
     </style>
 </head>
 <body class="flex justify-center min-h-screen p-4 sm:items-center">
@@ -100,7 +105,7 @@
     </div>
 
     <!-- ផ្ទាំងវត្តមាន -->
-    <div id="attendancePage" class="hidden w-full max-w-md">
+    <div id="attendancePage" class="hidden w-full max-w-md sm:max-w-lg">
         <div class="bg-white rounded-2xl shadow-xl p-6 sm:p-8 space-y-6">
             <div class="flex flex-col items-center space-y-2">
                 <div class="w-20 h-20 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center text-3xl font-bold ring-4 ring-white shadow-md">
@@ -155,6 +160,24 @@
         <div class="bg-white p-6 rounded-lg shadow-2xl max-w-sm">
             <h3 class="text-lg font-bold text-red-600 mb-2">!!! ការព្រមាន !!!</h3>
             <p class="text-gray-800 font-semibold">"ប្អូនបាន Check in ជោគជ័យហើយ ប៉ុន្តែក្នុងករណីប្អូនបិទ Location ឬ បិទ WIFI (Internet) ឬប្អូនបានឈានជើងចាកចេញពីអគារ DI ក្នុងម៉ោងធ្វើការរយៈពេល ១៤វិនាទីគឺស្មើនិងអវត្តមានដោយស្វ័យប្រវត្តិ"</p>
+        </div>
+    </div>
+    
+    <!-- Countdown Timer Modal -->
+    <div id="countdownModal" class="hidden fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-40 p-4">
+        <div class="bg-white p-6 rounded-lg shadow-2xl max-w-xs w-full text-center transform transition-all scale-95 opacity-0" id="countdownModalContent">
+            <h3 class="text-lg font-bold text-gray-800 mb-4">ពេលវេលារហូតដល់ម៉ោង Check Out</h3>
+            <div class="relative w-48 h-48 mx-auto">
+                <svg class="w-full h-full" viewBox="0 0 100 100">
+                    <circle class="text-gray-200" stroke-width="10" stroke="currentColor" fill="transparent" r="45" cx="50" cy="50" />
+                    <circle id="countdownCircle" class="text-indigo-500" stroke-width="10" stroke-linecap="round" stroke="currentColor" fill="transparent" r="45" cx="50" cy="50" 
+                            style="transform: rotate(-90deg); transform-origin: 50% 50%;" />
+                </svg>
+                <div id="countdownText" class="absolute inset-0 flex flex-col items-center justify-center text-2xl font-bold text-indigo-600">
+                    <span id="countdownHours">00</span>:<span id="countdownMinutes">00</span>:<span id="countdownSeconds">00</span>
+                </div>
+            </div>
+             <p class="text-sm text-gray-500 mt-4">ការតាមដានទីតាំងកំពុងដំណើរការ</p>
         </div>
     </div>
     
@@ -225,6 +248,15 @@
             const logoutModalContent = document.getElementById('logoutModalContent');
             const cancelLogoutButton = document.getElementById('cancelLogoutButton');
             const confirmLogoutButton = document.getElementById('confirmLogoutButton');
+            const countdownModal = document.getElementById('countdownModal');
+            const countdownModalContent = document.getElementById('countdownModalContent');
+            const countdownCircle = document.getElementById('countdownCircle');
+            const countdownHours = document.getElementById('countdownHours');
+            const countdownMinutes = document.getElementById('countdownMinutes');
+            const countdownSeconds = document.getElementById('countdownSeconds');
+            const circleRadius = countdownCircle.r.baseVal.value;
+            const circumference = 2 * Math.PI * circleRadius;
+            countdownCircle.style.strokeDasharray = circumference;
 
             // --- State Management ---
             let studentData = []; let currentStudent = null; let faceMatcher = null;
@@ -232,6 +264,7 @@
             let liveWatchId = null; let disconnectionTimer = null; let isCurrentlyTracking = false;
             let telegramAlertSent = false;
             let disconnectionLogged = false;
+            let countdownInterval = null;
 
             // --- Core Functions ---
             async function checkForSavedSession() {
@@ -253,7 +286,13 @@
             async function initializeLoginForm() {
                 loader.classList.remove('hidden');
                 loader.querySelector('p').textContent = 'កំពុងទាញទិន្នន័យ...';
-                await Promise.all([loadModels(), fetchData()]);
+                try {
+                    await Promise.all([loadModels(), fetchData()]);
+                    appContainer.classList.remove('hidden');
+                    appContainer.classList.add('fade-in-up');
+                } catch(e) {
+                    showError('មិនអាចទាញទិន្នន័យបានទេ។ សូមព្យាយាមម្តងទៀត។')
+                }
             }
 
             async function showAttendancePage(student) {
@@ -266,6 +305,7 @@
                     userInitial.textContent = student.name.trim().charAt(0).toUpperCase();
                 }
                 attendancePage.classList.remove('hidden');
+                attendancePage.classList.add('fade-in-up');
                 await updateButtonStates();
             }
             
@@ -273,10 +313,12 @@
                 stopLiveTracking();
                 localStorage.removeItem('loggedInStudent');
                 attendancePage.classList.add('hidden');
-                accountForm.classList.remove('hidden');
+                accountForm.reset();
+                idInput.disabled = true;
+                idDatalist.innerHTML = '';
+                nameDisplay.textContent = '-';
                 appContainer.classList.remove('hidden');
-                classInput.value = ''; idInput.value = ''; idInput.disabled = true;
-                idDatalist.innerHTML = ''; nameDisplay.textContent = '-'; currentStudent = null;
+                currentStudent = null;
             }
 
             async function loadModels() {
@@ -288,7 +330,10 @@
                         faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
                     ]);
                     areModelsLoaded = true;
-                } catch (error) { showError('បរាជ័យក្នុងការទាញយកម៉ូដែលវិភាគមុខ។'); }
+                } catch (error) { 
+                    console.error("Model loading error:", error);
+                    throw new Error('បរាជ័យក្នុងការទាញយកម៉ូដែលវិភាគមុខ។'); 
+                }
             }
             
             async function fetchData() {
@@ -315,14 +360,16 @@
                         return null;
                     }).filter(Boolean);
                     populateClasses();
-                    loader.classList.add('hidden');
-                    appContainer.classList.remove('hidden');
-                } catch (error) { showError('បរាជ័យក្នុងការទាញទិន្នន័យ។'); console.error(error); }
+                } catch (error) { 
+                    console.error("Fetch data error:", error);
+                    throw new Error('បរាជ័យក្នុងការទាញទិន្នន័យ។');
+                }
             }
             
             function handleRetry() {
                 errorContainer.classList.add('hidden');
-                accountForm.classList.remove('hidden');
+                appContainer.classList.add('hidden');
+                loader.classList.remove('hidden');
                 initializeLoginForm();
             }
 
@@ -442,34 +489,11 @@
                     const data = JSON.parse(text.substring(text.indexOf('(') + 1, text.lastIndexOf(')')));
                     if (data.status === 'error') { throw new Error(`API error for sheet ${sheetName}: ${data.errors[0]?.detailed_message}`); }
                     
-                    const today = new Date();
-                    today.setHours(0, 0, 0, 0);
-
-                    const row = data.table.rows.find(r => {
-                        if (!r || !r.c) return false;
-
-                        const rowStudentId = r.c[2]?.v; // Column C
-                        if (String(rowStudentId) !== String(studentId)) return false;
-
-                        const approvalStatus = r.c[8]?.v; // Column I
-                        if (approvalStatus !== 'អនុញ្ញាត') return false;
-
-                        const dateStr = r.c[5]?.v; // Column F, e.g., "Date(2025,9,2)"
-                        if (!dateStr || typeof dateStr !== 'string') return false;
-                        
-                        const match = dateStr.match(/Date\((\d+),(\d+),(\d+)\)/);
-                        if (!match) return false;
-
-                        const [_, year, month, day] = match.map(Number);
-                        const sheetDate = new Date(year, month, day);
-                        sheetDate.setHours(0, 0, 0, 0);
-
-                        return sheetDate.getTime() === today.getTime();
-                    });
-
+                    const row = data.table.rows.find(r => r.c && String(r.c[2]?.v) === String(studentId));
                     if (row) {
-                        const leaveType = row.c[6]?.v; // Column G
-                        return leaveType || null;
+                        const approvalStatus = row.c[8]?.v;
+                        const leaveType = row.c[6]?.v;
+                        if (approvalStatus === 'អនុញ្ញាត') { return leaveType || null; }
                     }
                     return null;
                 } catch (error) { 
@@ -569,42 +593,37 @@
                     const todaySchedule = currentStudent.schedule[dayMapping[now.getDay()]];
                     let status = 'សូមស្វាគមន៍!'; let canCheckIn = false; let canCheckOut = false;
 
-                    let cannotCheckIn = false;
-                    let cannotCheckOut = false;
-
-                    // Check 'Requests' sheet
-                    if (leaveStatus === 'មួយព្រឹក' || leaveStatus === 'មួយថ្ងៃ') cannotCheckIn = true;
-                    if (leaveStatus === 'មួយរសៀល' || leaveStatus === 'មួយថ្ងៃ') cannotCheckOut = true;
+                    const cannotCheckIn = (leaveStatus === 'មួយព្រឹក' || leaveStatus === 'មួយថ្ងៃ') || (crbLeaveStatus === 'មួយព្រឹក' || crbLeaveStatus === 'មួយថ្ងៃ' || crbLeaveStatus === 'ពេលយប់');
+                    const cannotCheckOut = (leaveStatus === 'មួយរសៀល' || leaveStatus === 'មួយថ្ងៃ') || (crbLeaveStatus === 'មួយរសៀល' || crbLeaveStatus === 'មួយថ្ងៃ' || crbLeaveStatus === 'ពេលយប់');
                     
-                    // Check 'CRBRequests' sheet
-                    if (crbLeaveStatus === 'មួយព្រឹក' || crbLeaveStatus === 'មួយថ្ងៃ' || crbLeaveStatus === 'ពេលយប់') cannotCheckIn = true;
-                    if (crbLeaveStatus === 'មួយរសៀល' || crbLeaveStatus === 'មួយថ្ងៃ' || crbLeaveStatus === 'ពេលយប់') cannotCheckOut = true;
+                    const timeWindows = getTimeWindowsForSchedule(todaySchedule, now.getDay());
+                    const isCheckOutTime = timeWindows ? isTimeInWindow(now, timeWindows.checkOutStart, timeWindows.checkOutEnd) : false;
 
                     if (attendanceStatus.checkIn && !attendanceStatus.checkOut) {
                         if (!isCurrentlyTracking) startLiveTracking();
-                        liveTrackingWarning.classList.remove('hidden');
-                    } else { stopLiveTracking(); }
-
-                    const timeWindows = getTimeWindowsForSchedule(todaySchedule, now.getDay());
+                        if (!isCheckOutTime) {
+                            startCheckoutCountdown(timeWindows);
+                        } else {
+                            stopCheckoutCountdown();
+                        }
+                    } else { 
+                        stopLiveTracking(); 
+                    }
                     
                     if (cannotCheckIn && cannotCheckOut) { status = 'អ្នកបានសុំច្បាប់មួយថ្ងៃ។'; }
                     else if (!timeWindows) { status = 'ថ្ងៃនេះមិនមានកាលវិភាគទេ។'; }
                     else {
                         const isCheckInTime = isTimeInWindow(now, timeWindows.checkInStart, timeWindows.checkInEnd);
-                        const isCheckOutTime = isTimeInWindow(now, timeWindows.checkOutStart, timeWindows.checkOutEnd);
-                        
+                        const isCheckOutNow = isTimeInWindow(now, timeWindows.checkOutStart, timeWindows.checkOutEnd);
+
                         if (!cannotCheckIn && isCheckInTime && !attendanceStatus.checkIn) canCheckIn = true;
-                        if (!cannotCheckOut && isCheckOutTime && attendanceStatus.checkIn && !attendanceStatus.checkOut) canCheckOut = true;
+                        if (!cannotCheckOut && isCheckOutNow && attendanceStatus.checkIn && !attendanceStatus.checkOut) canCheckOut = true;
                         
                         if (attendanceStatus.checkIn && attendanceStatus.checkOut) { status = 'អ្នកបាន Check Out រួចរាល់សម្រាប់ថ្ងៃនេះ។'; }
                         else if (attendanceStatus.checkIn) { status = 'អ្នកបាន Check In រួចរាល់។'; }
                         else if (canCheckIn) { status = 'អ្នកអាច Check In បាន។'; }
-                        else if (!isCheckInTime && !isCheckOutTime) { status = 'ផុតម៉ោងឆែកវត្តមានហើយ!!!'; }
-                        else {
-                            if (cannotCheckIn && isCheckInTime) status = 'អ្នកបានសុំច្បាប់ពេលព្រឹក។';
-                            else if (cannotCheckOut && isCheckOutTime) status = 'អ្នកបានសុំច្បាប់ពេលរសៀល។';
-                            else status = 'សូមរង់ចាំដល់ម៉ោង Check In / Out';
-                        }
+                        else if (!isCheckInTime && !isCheckOutNow) { status = 'ផុតម៉ោងឆែកវត្តមានហើយ!!!'; }
+                        else { status = cannotCheckIn && isCheckInTime ? 'អ្នកបានសុំច្បាប់ពេលព្រឹក។' : 'សូមរង់ចាំដល់ម៉ោង Check In / Out'; }
                     }
                     checkInButton.disabled = !canCheckIn; 
                     checkOutButton.disabled = !canCheckOut;
@@ -636,34 +655,42 @@
             async function handleAttendanceClick(type) {
                 setButtonLoading(type, true);
                 statusMessage.textContent = 'កំពុងស្នើសុំទីតាំង...';
-                navigator.geolocation.getCurrentPosition(
-                    async (position) => {
-                        const { latitude, longitude } = position.coords;
-                        const isInArea = isPointInPolygon([latitude, longitude], allowedAreaCoords);
-                        if (isInArea) {
-                            const now = new Date();
-                            const dayMapping = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
-                            const todaySchedule = currentStudent.schedule[dayMapping[now.getDay()]] || 'N/A';
-                            const data = { action: type.replace(' ', ''), studentId: currentStudent.id, schedule: todaySchedule };
-                            
-                            const result = await postAttendanceData(data);
-                            if (result.status === 'success') {
-                                if (type === 'Check Out') stopLiveTracking();
-                                await updateButtonStates();
+                try {
+                    const position = await new Promise((resolve, reject) => {
+                        navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true });
+                    });
+
+                    const { latitude, longitude } = position.coords;
+                    const isInArea = isPointInPolygon([latitude, longitude], allowedAreaCoords);
+                    
+                    if (isInArea) {
+                        const now = new Date();
+                        const dayMapping = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'];
+                        const todaySchedule = currentStudent.schedule[dayMapping[now.getDay()]] || 'N/A';
+                        const data = { action: type.replace(' ', ''), studentId: currentStudent.id, schedule: todaySchedule };
+                        
+                        const result = await postAttendanceData(data);
+                        if (result.status === 'success') {
+                            if (type === 'Check In') {
+                                liveTrackingWarning.classList.remove('hidden');
+                                setTimeout(async () => {
+                                    liveTrackingWarning.classList.add('hidden');
+                                    await updateButtonStates();
+                                }, 3000);
                             } else {
-                                statusMessage.textContent = `ការ ${type} បរាជ័យ: ${result.message || 'Unknown error'}`;
+                                stopLiveTracking();
                                 await updateButtonStates();
                             }
                         } else {
-                            statusMessage.textContent = `អ្នកមិនស្ថិតនៅក្នុងតំបន់កំណត់ទេ។`;
-                            setButtonLoading(type, false);
+                            throw new Error(result.message || 'Unknown error');
                         }
-                    },
-                    (error) => {
-                        statusMessage.textContent = error.code === 1 ? 'សូមអនុញ្ញាតឱ្យចូលប្រើទីតាំង។' : 'មិនអាចទទួលបានទីតាំងទេ។';
-                        setButtonLoading(type, false);
-                    }, { enableHighAccuracy: true }
-                );
+                    } else {
+                        throw new Error('អ្នកមិនស្ថិតនៅក្នុងតំបន់កំណត់ទេ។');
+                    }
+                } catch (error) {
+                    statusMessage.textContent = error.message || 'ការស្នើសុំទីតាំងបរាជ័យ។';
+                    setButtonLoading(type, false);
+                }
             }
             
             async function postAttendanceData(data) {
@@ -687,7 +714,7 @@
                 isCurrentlyTracking = true; 
                 telegramAlertSent = false;
                 disconnectionLogged = false;
-                stopLiveTracking(); // Clear old trackers just in case
+                stopLiveTracking();
                 window.addEventListener('offline', () => handleDisconnection('signal', null));
                 liveWatchId = navigator.geolocation.watchPosition(
                     (position) => {
@@ -705,6 +732,7 @@
             function stopLiveTracking() {
                 isCurrentlyTracking = false;
                 liveTrackingWarning.classList.add('hidden');
+                stopCheckoutCountdown();
                 if (liveWatchId) { navigator.geolocation.clearWatch(liveWatchId); liveWatchId = null; }
                 if (disconnectionTimer) { clearTimeout(disconnectionTimer); disconnectionTimer = null; }
                 window.removeEventListener('offline', () => handleDisconnection('signal', null));
@@ -748,6 +776,54 @@
                 postAttendanceData(data); // Fire and forget
             }
 
+            function startCheckoutCountdown(timeWindows) {
+                stopCheckoutCountdown();
+                const checkoutTime = parseTime(new Date(), timeWindows.checkOutStart);
+                if (!checkoutTime || checkoutTime < new Date()) { return; }
+
+                countdownModal.classList.remove('hidden');
+                setTimeout(() => {
+                    countdownModalContent.classList.remove('scale-95', 'opacity-0');
+                }, 10);
+
+                const totalDuration = checkoutTime.getTime() - new Date().getTime();
+
+                function updateCountdown() {
+                    const now = new Date();
+                    const remainingTime = checkoutTime.getTime() - now.getTime();
+                    if (remainingTime <= 0) {
+                        stopCheckoutCountdown();
+                        updateButtonStates();
+                        return;
+                    }
+
+                    const hours = Math.floor(remainingTime / (1000 * 60 * 60));
+                    const minutes = Math.floor((remainingTime % (1000 * 60 * 60)) / (1000 * 60));
+                    const seconds = Math.floor((remainingTime % (1000 * 60)) / 1000);
+
+                    countdownHours.textContent = String(hours).padStart(2, '0');
+                    countdownMinutes.textContent = String(minutes).padStart(2, '0');
+                    countdownSeconds.textContent = String(seconds).padStart(2, '0');
+                    
+                    const progress = (totalDuration - remainingTime) / totalDuration;
+                    const offset = circumference * (1 - progress);
+                    countdownCircle.style.strokeDashoffset = offset;
+                }
+                updateCountdown();
+                countdownInterval = setInterval(updateCountdown, 1000);
+            }
+
+            function stopCheckoutCountdown() {
+                if (countdownInterval) {
+                    clearInterval(countdownInterval);
+                    countdownInterval = null;
+                }
+                countdownModalContent.classList.add('scale-95', 'opacity-0');
+                setTimeout(() => {
+                   countdownModal.classList.add('hidden');
+               }, 200);
+            }
+
             function showLogoutModal() {
                 logoutModal.classList.remove('hidden');
                 setTimeout(() => logoutModalContent.classList.remove('scale-95', 'opacity-0'), 10);
@@ -773,3 +849,4 @@
     </script>
 </body>
 </html>
+
