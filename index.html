@@ -203,9 +203,9 @@
             const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
             
             const LEAVE_SHEET_ID = '18oonwPyyU6I0hHX-vucvoYSqGf_S7wPnQX817CqauPE';
-            const LEAVE_SHEET_NAME = 'Requestsl';
+            const LEAVE_SHEET_NAME = 'Requests';
             const CRB_LEAVE_SHEET_ID = '1xpy1CDg3LTD1iYPXKbfJrjldR5vVW3AhoNSwTzb8wDY';
-            const CRB_LEAVE_SHEET_NAME = 'CRBRequestsl';
+            const CRB_LEAVE_SHEET_NAME = 'CRBRequests';
             
             const allowedAreaCoords = [
                 [11.415296921108219, 104.76411630326837],
@@ -483,18 +483,46 @@
                     const response = await fetch(`${`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:json&sheet=${sheetName}`}&t=${new Date().getTime()}`);
                     if (!response.ok) { throw new Error(`Network error for sheet ${sheetName}: ${response.statusText}`); }
                     const text = await response.text();
-                     if (!text || !text.includes('google.visualization.Query.setResponse')) {
-                         throw new Error(`Invalid response from Google Sheet '${sheetName}'. Check sharing permissions.`);
+                    if (!text || !text.includes('google.visualization.Query.setResponse')) {
+                        throw new Error(`Invalid response from Google Sheet '${sheetName}'. Check sharing permissions.`);
                     }
                     const data = JSON.parse(text.substring(text.indexOf('(') + 1, text.lastIndexOf(')')));
                     if (data.status === 'error') { throw new Error(`API error for sheet ${sheetName}: ${data.errors[0]?.detailed_message}`); }
-                    
-                    const row = data.table.rows.find(r => r.c && String(r.c[2]?.v) === String(studentId));
-                    if (row) {
-                        const approvalStatus = row.c[8]?.v;
-                        const leaveType = row.c[6]?.v;
-                        if (approvalStatus === 'អនុញ្ញាត') { return leaveType || null; }
+
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0); // Normalize to the start of the day for comparison
+
+                    const matchingRow = data.table.rows.find(r => {
+                        if (!r || !r.c) return false;
+
+                        const rowStudentId = String(r.c[2]?.v);
+                        if (rowStudentId !== String(studentId)) return false;
+
+                        const approvalStatus = r.c[8]?.v;
+                        if (approvalStatus !== 'អនុញ្ញាត') return false;
+                        
+                        const dateValue = r.c[5]?.v; // Format: "Date(YYYY,M,D)" where M is 0-indexed
+                        if (!dateValue || typeof dateValue !== 'string' || !dateValue.startsWith('Date(')) return false;
+
+                        try {
+                            const parts = dateValue.substring(5, dateValue.length - 1).split(',');
+                            const year = parseInt(parts[0], 10);
+                            const month = parseInt(parts[1], 10);
+                            const day = parseInt(parts[2], 10);
+                            const sheetDate = new Date(year, month, day);
+                            sheetDate.setHours(0, 0, 0, 0); 
+
+                            return sheetDate.getTime() === today.getTime();
+                        } catch (e) {
+                            console.error("Error parsing date from sheet:", dateValue, e);
+                            return false;
+                        }
+                    });
+
+                    if (matchingRow) {
+                        return matchingRow.c[6]?.v || null; // Return Leave Type (Column G -> index 6)
                     }
+
                     return null;
                 } catch (error) { 
                     console.error(`Failed to fetch or parse data from ${sheetName}:`, error);
@@ -584,7 +612,7 @@
 
                     if (attendanceStatus.error || leaveStatus?.error || crbLeaveStatus?.error) {
                         const errorMsg = attendanceStatus.error ? attendanceStatus.message 
-                                     : (leaveStatus?.error ? leaveStatus.message : crbLeaveStatus.message);
+                                       : (leaveStatus?.error ? leaveStatus.message : crbLeaveStatus.message);
                         throw new Error(errorMsg || "An unknown error occurred while fetching data.");
                     }
 
@@ -849,3 +877,4 @@
     </script>
 </body>
 </html>
+
