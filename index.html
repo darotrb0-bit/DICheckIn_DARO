@@ -610,32 +610,32 @@
                         stopLiveTracking(); 
                     }
                     
-                    // if (cannotCheckIn && cannotCheckOut) { status = 'អ្នកបានសុំច្បាប់មួយថ្ងៃ។'; }
-                    // else if (!timeWindows) { status = 'ថ្ងៃនេះមិនមានកាលវិភាគទេ។'; }
-                    // else {
-                    //     const isCheckInTime = isTimeInWindow(now, timeWindows.checkInStart, timeWindows.checkInEnd);
-                    //     const isCheckOutNow = isTimeInWindow(now, timeWindows.checkOutStart, timeWindows.checkOutEnd);
+                    if (cannotCheckIn && cannotCheckOut) { status = 'អ្នកបានសុំច្បាប់មួយថ្ងៃ។'; }
+                    else if (!timeWindows) { status = 'ថ្ងៃនេះមិនមានកាលវិភាគទេ។'; }
+                    else {
+                        const isCheckInTime = isTimeInWindow(now, timeWindows.checkInStart, timeWindows.checkInEnd);
+                        const isCheckOutNow = isTimeInWindow(now, timeWindows.checkOutStart, timeWindows.checkOutEnd);
 
-                    //     if (!cannotCheckIn && isCheckInTime && !attendanceStatus.checkIn) canCheckIn = true;
-                    //     if (!cannotCheckOut && isCheckOutNow && attendanceStatus.checkIn && !attendanceStatus.checkOut) canCheckOut = true;
+                        if (!cannotCheckIn && isCheckInTime && !attendanceStatus.checkIn) canCheckIn = true;
+                        if (!cannotCheckOut && isCheckOutNow && attendanceStatus.checkIn && !attendanceStatus.checkOut) canCheckOut = true;
                         
-                    //     if (attendanceStatus.checkIn && attendanceStatus.checkOut) { status = 'អ្នកបាន Check Out រួចរាល់សម្រាប់ថ្ងៃនេះ។'; }
-                    //     else if (attendanceStatus.checkIn) { status = 'អ្នកបាន Check In រួចរាល់។'; }
-                    //     else if (canCheckIn) { status = 'អ្នកអាច Check In បាន។'; }
-                    //     else if (!isCheckInTime && !isCheckOutNow) { status = 'ផុតម៉ោងឆែកវត្តមានហើយ!!!'; }
-                    //     else { status = cannotCheckIn && isCheckInTime ? 'អ្នកបានសុំច្បាប់ពេលព្រឹក។' : 'សូមរង់ចាំដល់ម៉ោង Check In / Out'; }
-                    // }
-                //     checkInButton.disabled = !canCheckIn; 
-                //     checkOutButton.disabled = !canCheckOut;
-                //     statusMessage.textContent = status;
+                        if (attendanceStatus.checkIn && attendanceStatus.checkOut) { status = 'អ្នកបាន Check Out រួចរាល់សម្រាប់ថ្ងៃនេះ។'; }
+                        else if (attendanceStatus.checkIn) { status = 'អ្នកបាន Check In រួចរាល់។'; }
+                        else if (canCheckIn) { status = 'អ្នកអាច Check In បាន។'; }
+                        else if (!isCheckInTime && !isCheckOutNow) { status = 'ផុតម៉ោងឆែកវត្តមានហើយ!!!'; }
+                        else { status = cannotCheckIn && isCheckInTime ? 'អ្នកបានសុំច្បាប់ពេលព្រឹក។' : 'សូមរង់ចាំដល់ម៉ោង Check In / Out'; }
+                    }
+                    checkInButton.disabled = !canCheckIn; 
+                    checkOutButton.disabled = !canCheckOut;
+                    statusMessage.textContent = status;
 
-                // } catch (error) { 
-            //         statusMessage.textContent = error.message || 'មានបញ្ហាក្នុងការពិនិត្យស្ថានភាព។'; 
-            //         console.error("Error updating button states:", error);
-            //         checkInButton.disabled = true;
-            //         checkOutButton.disabled = true;
-            //     }
-            // }
+                } catch (error) { 
+                    statusMessage.textContent = error.message || 'មានបញ្ហាក្នុងការពិនិត្យស្ថានភាព។'; 
+                    console.error("Error updating button states:", error);
+                    checkInButton.disabled = true;
+                    checkOutButton.disabled = true;
+                }
+            }
             
             function setButtonLoading(type, isLoading) {
                 const button = type === 'Check In' ? checkInButton : checkOutButton;
