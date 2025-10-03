@@ -625,17 +625,17 @@
                     //     else if (!isCheckInTime && !isCheckOutNow) { status = 'ផុតម៉ោងឆែកវត្តមានហើយ!!!'; }
                     //     else { status = cannotCheckIn && isCheckInTime ? 'អ្នកបានសុំច្បាប់ពេលព្រឹក។' : 'សូមរង់ចាំដល់ម៉ោង Check In / Out'; }
                     // }
-                    checkInButton.disabled = !canCheckIn; 
-                    checkOutButton.disabled = !canCheckOut;
-                    statusMessage.textContent = status;
+                //     checkInButton.disabled = !canCheckIn; 
+                //     checkOutButton.disabled = !canCheckOut;
+                //     statusMessage.textContent = status;
 
-                } catch (error) { 
-                    statusMessage.textContent = error.message || 'មានបញ្ហាក្នុងការពិនិត្យស្ថានភាព។'; 
-                    console.error("Error updating button states:", error);
-                    checkInButton.disabled = true;
-                    checkOutButton.disabled = true;
-                }
-            }
+                // } catch (error) { 
+            //         statusMessage.textContent = error.message || 'មានបញ្ហាក្នុងការពិនិត្យស្ថានភាព។'; 
+            //         console.error("Error updating button states:", error);
+            //         checkInButton.disabled = true;
+            //         checkOutButton.disabled = true;
+            //     }
+            // }
             
             function setButtonLoading(type, isLoading) {
                 const button = type === 'Check In' ? checkInButton : checkOutButton;
