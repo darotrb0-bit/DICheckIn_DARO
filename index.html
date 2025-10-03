@@ -203,9 +203,9 @@
             const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
             
             const LEAVE_SHEET_ID = '18oonwPyyU6I0hHX-vucvoYSqGf_S7wPnQX817CqauPE';
-            const LEAVE_SHEET_NAME = 'Requests';
+            const LEAVE_SHEET_NAME = 'Requestsl';
             const CRB_LEAVE_SHEET_ID = '1xpy1CDg3LTD1iYPXKbfJrjldR5vVW3AhoNSwTzb8wDY';
-            const CRB_LEAVE_SHEET_NAME = 'CRBRequests';
+            const CRB_LEAVE_SHEET_NAME = 'CRBRequestsl';
             
             const allowedAreaCoords = [
                 [11.415296921108219, 104.76411630326837],
@@ -214,13 +214,8 @@
                 [11.413703948114726, 104.76333502981896]
             ];
 
-            // !!! សំខាន់ខ្លាំងណាស់ / VERY IMPORTANT !!!
-            // អ្នកត្រូវតែបង្កើត Google Apps Script Web App ហើយបិទភ្ជាប់ URL របស់អ្នកនៅទីនេះ។
-            // កម្មវិធីនឹងមិនដំណើរការត្រឹមត្រូវទេបើគ្មាន URL នេះ។
-            // You MUST create a Google Apps Script Web App and paste your URL here.
-            // The application will not work correctly without this URL.
-            const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzx1R73GM37Ys4VdETHSPrJGnc-h9_upi676KBXZnM_-slZvPjM3UCH7y6PHEXMZIlVHw/exec'; // <--- បញ្ចូល URL របស់អ្នកនៅទីនេះ / PASTE YOUR URL HERE
-
+            // !!! សំខាន់ !!! សូមបង្កើត Google Apps Script ហើយបិទភ្ជាប់ Web App URL របស់អ្នកនៅទីនេះ
+            const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzx1R73GM37Ys4VdETHSPrJGnc-h9_upi676KBXZnM_-slZvPjM3UCH7y6PHEXMZIlVHw/exec';
 
             // --- DOM Elements ---
             const loader = document.getElementById('loader');
@@ -295,9 +290,8 @@
                     await Promise.all([loadModels(), fetchData()]);
                     appContainer.classList.remove('hidden');
                     appContainer.classList.add('fade-in-up');
-                    loader.classList.add('hidden');
                 } catch(e) {
-                    showError('មិនអាចទាញទិន្នន័យបានទេ។ សូមពិនិត្យមើលការតភ្ជាប់អ៊ីនធឺណិតរបស់អ្នក ហើយព្យាយាមម្តងទៀត។')
+                    showError('មិនអាចទាញទិន្នន័យបានទេ។ សូមព្យាយាមម្តងទៀត។')
                 }
             }
 
@@ -490,7 +484,7 @@
                     if (!response.ok) { throw new Error(`Network error for sheet ${sheetName}: ${response.statusText}`); }
                     const text = await response.text();
                      if (!text || !text.includes('google.visualization.Query.setResponse')) {
-                          throw new Error(`Invalid response from Google Sheet '${sheetName}'. Check sharing permissions.`);
+                         throw new Error(`Invalid response from Google Sheet '${sheetName}'. Check sharing permissions.`);
                     }
                     const data = JSON.parse(text.substring(text.indexOf('(') + 1, text.lastIndexOf(')')));
                     if (data.status === 'error') { throw new Error(`API error for sheet ${sheetName}: ${data.errors[0]?.detailed_message}`); }
@@ -562,8 +556,7 @@
             }
             
             async function getAttendanceStatus(studentId) {
-                if (APPS_SCRIPT_URL.includes('AKfycbzx1R73GM37Ys4VdETHSPrJGnc-h9_upi676KBXZnM_-slZvPjM3UCH7y6PHEXMZIlVHw')) {
-                    console.error("Please replace the placeholder APPS_SCRIPT_URL.");
+                if (APPS_SCRIPT_URL === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL') {
                     return { error: true, message: "Apps Script URL is not configured." };
                 }
                 try {
@@ -653,8 +646,8 @@
                 } else {
                      button.disabled = false;
                      const icon = type === 'Check In' 
-                         ? `<svg class="w-10 h-10 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" /></svg>`
-                         : `<svg class="w-10 h-10 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m-3 0l-3-3m0 0l3-3m-3 3H9" /></svg>`;
+                        ? `<svg class="w-10 h-10 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" /></svg>`
+                        : `<svg class="w-10 h-10 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m-3 0l-3-3m0 0l3-3m-3 3H9" /></svg>`;
                     content.innerHTML = `${icon}<span class="text-lg mt-2">${type}</span>`;
                 }
             }
@@ -697,14 +690,13 @@
                 } catch (error) {
                     statusMessage.textContent = error.message || 'ការស្នើសុំទីតាំងបរាជ័យ។';
                     setButtonLoading(type, false);
-                    setTimeout(updateButtonStates, 3000); // Reset button states after showing error
                 }
             }
             
             async function postAttendanceData(data) {
                 if (data.action !== 'sendTelegramAlert') statusMessage.textContent = 'កំពុងរក្សាទុក...';
                 try {
-                    if (APPS_SCRIPT_URL.includes('AKfycbzx1R73GM37Ys4VdETHSPrJGnc-h9_upi676KBXZnM_-slZvPjM3UCH7y6PHEXMZIlVHw')) throw new Error("URL is not configured.");
+                    if (APPS_SCRIPT_URL === 'YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL') throw new Error("URL is not configured.");
                     const response = await fetch(APPS_SCRIPT_URL, {
                         method: 'POST', body: JSON.stringify(data),
                         headers: { 'Content-Type': 'text/plain;charset=utf-8' }
@@ -786,7 +778,6 @@
 
             function startCheckoutCountdown(timeWindows) {
                 stopCheckoutCountdown();
-                if (!timeWindows || !timeWindows.checkOutStart) return;
                 const checkoutTime = parseTime(new Date(), timeWindows.checkOutStart);
                 if (!checkoutTime || checkoutTime < new Date()) { return; }
 
@@ -830,7 +821,7 @@
                 countdownModalContent.classList.add('scale-95', 'opacity-0');
                 setTimeout(() => {
                    countdownModal.classList.add('hidden');
-                }, 200);
+               }, 200);
             }
 
             function showLogoutModal() {
