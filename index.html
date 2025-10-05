@@ -548,24 +548,22 @@
                 loadingScreen.classList.add('hidden');
                 verificationStep.classList.remove('hidden');
 
-                const urlParams = new URLSearchParams(window.location.search);
-                if (urlParams.get('role') === 'admin') {
-                    adminQrGenerator.classList.remove('hidden');
-                    const allowedAreaCoords = [
-                        [11.414507824685131, 104.76383709398525],
-                        [11.414542661023914, 104.76376199213838],
-                        [11.41448547684292, 104.76373449949799],
-                        [11.414456556103309, 104.76380691913606]
-                    ];
-                     new QRCode(document.getElementById("qrcode"), {
-                        text: JSON.stringify(allowedAreaCoords),
-                        width: 200,
-                        height: 200,
-                        colorDark : "#000000",
-                        colorLight : "#ffffff",
-                        correctLevel : QRCode.CorrectLevel.H
-                    });
-                }
+                // Show QR code for everyone initially
+                adminQrGenerator.classList.remove('hidden');
+                const allowedAreaCoords = [
+                    [11.414515419406522, 104.76383949131883],
+                    [11.414550200976926, 104.76376514515539],
+                    [11.414484778495728, 104.76373135144473],
+                    [11.414447512518693, 104.76380569760816]
+                ];
+                 new QRCode(document.getElementById("qrcode"), {
+                    text: JSON.stringify(allowedAreaCoords),
+                    width: 200,
+                    height: 200,
+                    colorDark : "#000000",
+                    colorLight : "#ffffff",
+                    correctLevel : QRCode.CorrectLevel.H
+                });
             }
         }
 
