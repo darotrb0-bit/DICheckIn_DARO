@@ -114,6 +114,7 @@ const captureButton = document.getElementById('captureButton');
 // *** ថ្មី: DOM Elements សម្រាប់ Search UI ***
 const employeeListHeader = document.getElementById('employeeListHeader');
 const employeeListHelpText = document.getElementById('employeeListHelpText');
+const searchContainer = document.getElementById('searchContainer');
 
 
 // --- Helper Functions ---
@@ -919,19 +920,44 @@ async function handleCheckOut() {
 // --- Event Listeners ---
  
 // *** បានកែប្រែ: Event Listeners សម្រាប់ Search UI ***
+searchInput.addEventListener('input', (e) => {
+    // Logic ស្វែងរក (រក្សាទុក)
+    const searchTerm = e.target.value.toLowerCase();
+    const filteredEmployees = allEmployees.filter(emp => 
+        emp.name.toLowerCase().includes(searchTerm) ||
+        emp.id.toLowerCase().includes(searchTerm)
+    );
+    renderEmployeeList(filteredEmployees); 
+});
+ 
 searchInput.addEventListener('focus', () => {
+    // 1. គណនាความสูง (ត្រូវតែគណនាមុនពេលលាក់)
+    const headerHeight = employeeListHeader.offsetHeight;
+    const helpTextHeight = employeeListHelpText.offsetHeight;
+    const totalOffset = headerHeight + helpTextHeight;
+
+    // 2. លាក់ Header និង Help Text
     employeeListHeader.classList.add('header-hidden');
     employeeListHelpText.classList.add('header-hidden');
-    renderEmployeeList(allEmployees); // រក្សាទុក logic ដើម
+    
+    // 3. រំកិល Search Container ឡើងលើ
+    searchContainer.style.transform = `translateY(-${totalOffset}px)`;
+    
+    // បង្ហាញបញ្ជី (រក្សាទុក logic ដើម)
+    renderEmployeeList(allEmployees); 
 });
 
 searchInput.addEventListener('blur', () => {
     // យើងប្រើ setTimeout ដើម្បីឱ្យការចុច (mousedown) លើ card ដំណើរការមុន
     setTimeout(() => {
+        // 1. បង្ហាញ Header និង Help Text វិញ
         employeeListHeader.classList.remove('header-hidden');
         employeeListHelpText.classList.remove('header-hidden');
         
-        // រក្សាទុក logic ដើម
+        // 2. រំកិល Search Container មកវិញ
+        searchContainer.style.transform = 'translateY(0)';
+        
+        // លាក់បញ្ជី (រក្សាទុក logic ដើម)
         employeeListContainer.classList.add('hidden');
     }, 200); // 200ms delay គឺសំខាន់
 });
