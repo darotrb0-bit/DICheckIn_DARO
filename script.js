@@ -17,9 +17,17 @@ import {
   where,
   getDocs,
 } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+import {
+  getDatabase,
+  ref,
+  onValue,
+} from "https://www.gstatic.com/firebasejs/11.6.1/firebase-database.js";
 
 // --- Global Variables ---
 let dbAttendance, dbLeave, authAttendance;
+let dbAttendanceRTDB;
+let shiftRulesFromDB = null;
+let lateRulesFromDB = null; // សម្រាប់ផ្ទុកច្បាប់ Check-in យឺត
 let allEmployees = [];
 let currentMonthRecords = [];
 let currentUser = null;
@@ -28,7 +36,7 @@ let attendanceCollectionRef = null;
 let attendanceListener = null;
 let currentConfirmCallback = null;
 
-// --- ថ្មី: អថេរសម្រាប់គ្រប់គ្រង Session (Device Lock) ---
+// --- អថេរសម្រាប់គ្រប់គ្រង Session (Device Lock) ---
 let sessionCollectionRef = null;
 let sessionListener = null;
 let currentDeviceId = null;
@@ -38,9 +46,11 @@ let modelsLoaded = false;
 let currentUserFaceMatcher = null;
 let currentScanAction = null; // 'checkIn' or 'checkOut'
 let videoStream = null;
-const FACE_MATCH_THRESHOLD = 0.4; // 70% match (Distance 0.3)
+// --- *** ថ្មី: កែសម្រួល Accuracy ទៅ 60% *** ---
+const FACE_MATCH_THRESHOLD = 0.4; // 60% match (Distance 0.4)
+// --- *** ចប់ការកែសម្រួល *** ---
 
-// --- << ថ្មី: Map សម្រាប់បកប្រែ Duration ជាអក្សរខ្មែរ >> ---
+// --- Map សម្រាប់បកប្រែ Duration ជាអក្សរខ្មែរ ---
 const durationMap = {
   មួយថ្ងៃកន្លះ: 1.5,
   ពីរថ្ងៃ: 2,
@@ -86,9 +96,10 @@ const firebaseConfigAttendance = {
   messagingSenderId: "1030447497157",
   appId: "1:1030447497157:web:9792086df1e864559fd5ac",
   measurementId: "G-QCJ2JH4WH6",
+  databaseURL: "https://checkme-10e18-default-rtdb.firebaseio.com",
 };
 
-// --- ថ្មី: Firebase Configuration (Leave Requests) ---
+// --- Firebase Configuration (Leave Requests) ---
 const firebaseConfigLeave = {
   apiKey: "AIzaSyDjr_Ha2RxOWEumjEeSdluIW3JmyM76mVk",
   authDomain: "dipermisstion.firebaseapp.com",
@@ -158,7 +169,6 @@ const cameraLoadingText = document.getElementById("cameraLoadingText");
 const cameraHelpText = document.getElementById("cameraHelpText");
 const captureButton = document.getElementById("captureButton");
 
-// --- *** ថ្មី: ប៊ូតុង Login *** ---
 const employeeLoginButton = document.getElementById("employeeLoginButton");
 
 const employeeListHeader = document.getElementById("employeeListHeader");
@@ -310,12 +320,37 @@ function parseLeaveDate(dateString) {
   }
 }
 
+function convertTimeFormatToDecimal(timeString) {
+  if (!timeString) return 0;
+  const parts = timeString.match(/(\d+):(\d+) (AM|PM)/i);
+  if (!parts) {
+    console.warn(`ទម្រង់ម៉ោងមិនត្រឹមត្រូវ៖ ${timeString}`);
+    return 0;
+  }
+
+  let [hours, minutes] = [parseInt(parts[1]), parseInt(parts[2])];
+  const modifier = parts[3].toUpperCase();
+
+  if (modifier === "PM" && hours !== 12) {
+    hours += 12;
+  }
+  if (modifier === "AM" && hours === 12) {
+    hours = 0;
+  }
+
+  return hours + minutes / 60;
+}
+
 function checkShiftTime(shiftType, checkType) {
+  if (!shiftRulesFromDB) {
+    console.error("Shift Rules មិនទាន់ទាញយករួចរាល់ ឬមានបញ្ហា។");
+    return false;
+  }
+
   if (!shiftType || shiftType === "N/A") {
     console.warn(`វេនមិនបានកំណត់ (N/A)។ មិនអនុញ្ញាតឱ្យស្កេន។`);
     return false;
   }
-
   if (shiftType === "Uptime") {
     return true;
   }
@@ -325,29 +360,12 @@ function checkShiftTime(shiftType, checkType) {
   const currentMinute = now.getMinutes();
   const currentTime = currentHour + currentMinute / 60;
 
-  const shiftRules = {
-    ពេញម៉ោង: {
-      checkIn: [6.83, 10.25],
-      checkOut: [17.5, 20.25],
-    },
-    ពេលយប់: {
-      checkIn: [17.66, 19.25],
-      checkOut: [20.91, 21.83],
-    },
-    មួយព្រឹក: {
-      checkIn: [6.83, 10.25],
-      checkOut: [11.5, 13.25],
-    },
-    មួយរសៀល: {
-      checkIn: [11.83, 14.5],
-      checkOut: [17.5, 20.25],
-    },
-  };
-
-  const rules = shiftRules[shiftType];
+  const rules = shiftRulesFromDB[shiftType];
 
   if (!rules) {
-    console.warn(`វេនមិនស្គាល់: "${shiftType}". មិនអនុញ្ញាតឱ្យស្កេន។`);
+    console.warn(
+      `វេនមិនស្គាល់ក្នុង DB: "${shiftType}". មិនអនុញ្ញាតឱ្យស្កេន។`
+    );
     return false;
   }
 
@@ -357,7 +375,11 @@ function checkShiftTime(shiftType, checkType) {
   }
 
   console.log(
-    `ក្រៅម៉ោង: ម៉ោងបច្ចុប្បន្ន (${currentTime}) មិនស្ថិតក្នុងចន្លោះ [${min}, ${max}] សម្រាប់វេន "${shiftType}"`
+    `ក្រៅម៉ោង: ម៉ោងបច្ចុប្បន្ន (${currentTime.toFixed(
+      2
+    )}) មិនស្ថិតក្នុងចន្លោះ [${min.toFixed(2)}, ${max.toFixed(
+      2
+    )}] សម្រាប់វេន "${shiftType}" (ទាញពី DB)`
   );
   return false;
 }
@@ -427,25 +449,30 @@ function isInsideArea(lat, lon) {
 
 // --- AI & Camera Functions ---
 
+// --- *** ថ្មី: កែសម្រួល Performance (Hybrid Models) *** ---
 async function loadAIModels() {
   const MODEL_URL = "./models";
-  loadingText.textContent = "កំពុងទាញយក AI Models (1/4)...";
+  loadingText.textContent = "កំពុងទាញយក AI Models (1/5)..."; // ឥឡូវ 1/5
 
   try {
-    // Model សម្រាប់ Accuracy (SsdMobilenetv1)
+    // 1. SsdMobilenetv1 (សម្រាប់ Profile - ត្រឹមត្រូវ)
     await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL, {
       useDiskCache: true,
     });
-    loadingText.textContent = "កំពុងទាញយក AI Models (2/4)...";
+    loadingText.textContent = "កំពុងទាញយក AI Models (2/5)...";
+    // 2. TinyFaceDetector (សម្រាប់ Live Scan - លឿន)
+    await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL, {
+      useDiskCache: true,
+    });
+    loadingText.textContent = "កំពុងទាញយក AI Models (3/5)...";
     await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL, {
       useDiskCache: true,
     });
-    loadingText.textContent = "កំពុងទាញយក AI Models (3/4)...";
+    loadingText.textContent = "កំពុងទាញយក AI Models (4/5)...";
     await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL, {
       useDiskCache: true,
     });
-    // Model សម្រាប់ Liveness (Smile Detection)
-    loadingText.textContent = "កំពុងទាញយក AI Models (4/4)...";
+    loadingText.textContent = "កំពុងទាញយក AI Models (5/5)..."; // ឥឡូវ 5/5
     await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL, {
       useDiskCache: true,
     });
@@ -462,6 +489,7 @@ async function loadAIModels() {
     );
   }
 }
+// --- *** ចប់ការកែសម្រួល *** ---
 
 async function prepareFaceMatcher(imageUrl) {
   currentUserFaceMatcher = null;
@@ -474,11 +502,12 @@ async function prepareFaceMatcher(imageUrl) {
     profileName.textContent = "កំពុងវិភាគរូបថត...";
     const img = await faceapi.fetchImage(imageUrl);
 
-    // ប្រើ SsdMobilenetv1Options សម្រាប់ Accuracy
+    // --- ថ្មី: នៅតែប្រើ SsdMobilenetv1 (ត្រឹមត្រូវ) សម្រាប់ Profile ---
     const detection = await faceapi
       .detectSingleFace(img, new faceapi.SsdMobilenetv1Options())
       .withFaceLandmarks()
       .withFaceDescriptor();
+    // --- *** ចប់ការកែសម្រួល *** ---
 
     if (detection) {
       currentUserFaceMatcher = new faceapi.FaceMatcher(detection.descriptor);
@@ -668,6 +697,149 @@ async function checkFullLeaveStatus(employeeId, checkType) {
   }
 }
 
+function fetchShiftRules() {
+  return new Promise((resolve, reject) => {
+    if (!dbAttendanceRTDB) {
+      console.error("RTDB មិនទាន់ភ្ជាប់!");
+      reject(new Error("RTDB មិនទាន់ភ្ជាប់!"));
+      return;
+    }
+    loadingText.textContent = "កំពុងទាញយកច្បាប់វេន...";
+    const correctPath = "វេនធ្វើការ";
+    console.log(`Fetching shift rules from RTDB path: '${correctPath}'`);
+    const dbRef = ref(dbAttendanceRTDB, correctPath);
+
+    let isFirstLoad = true;
+
+    onValue(
+      dbRef,
+      (snapshot) => {
+        if (!snapshot.exists()) {
+          const errorMsg = `Node '${correctPath}' រកមិនឃើញក្នុង RTDB!`;
+          console.error(errorMsg);
+          if (isFirstLoad) {
+            reject(new Error(errorMsg));
+          }
+          return;
+        }
+
+        const dbRules = snapshot.val();
+        const processedRules = {};
+
+        for (const shiftName in dbRules) {
+          const rules = dbRules[shiftName];
+          if (
+            rules.StartCheckIn &&
+            rules.EndCheckIn &&
+            rules.StartCheckout &&
+            rules.EndCheckout
+          ) {
+            processedRules[shiftName] = {
+              checkIn: [
+                convertTimeFormatToDecimal(rules.StartCheckIn),
+                convertTimeFormatToDecimal(rules.EndCheckIn),
+              ],
+              checkOut: [
+                convertTimeFormatToDecimal(rules.StartCheckout),
+                convertTimeFormatToDecimal(rules.EndCheckout),
+              ],
+            };
+          } else {
+            console.warn(`Shift '${shiftName}' ខ្វះទិន្នន័យ (Start/End)`);
+          }
+        }
+
+        shiftRulesFromDB = processedRules;
+        console.log("Shift rules processed and loaded (Live):", shiftRulesFromDB);
+
+        if (isFirstLoad) {
+          resolve();
+          isFirstLoad = false;
+        }
+      },
+      (error) => {
+        console.error("Error fetching shift rules:", error);
+        if (isFirstLoad) {
+          reject(error);
+          isFirstLoad = false;
+        }
+        showMessage(
+          "បញ្ហា Realtime",
+          `បាត់បង់ការតភ្ជាប់ទៅ Shift Rules៖ ${error.message}`,
+          true
+        );
+      }
+    );
+  });
+}
+
+function fetchLateRules() {
+  return new Promise((resolve, reject) => {
+    if (!dbAttendanceRTDB) {
+      console.error("RTDB មិនទាន់ភ្ជាប់!");
+      reject(new Error("RTDB មិនទាន់ភ្ជាប់!"));
+      return;
+    }
+    loadingText.textContent = "កំពុងទាញយកច្បាប់មកយឺត...";
+    const correctPath = "CheckInLate";
+    console.log(`Fetching late rules from RTDB path: '${correctPath}'`);
+    const dbRef = ref(dbAttendanceRTDB, correctPath);
+
+    let isFirstLoad = true;
+
+    onValue(
+      dbRef,
+      (snapshot) => {
+        if (!snapshot.exists()) {
+          const errorMsg = `Node '${correctPath}' រកមិនឃើញក្នុង RTDB!`;
+          console.error(errorMsg);
+          if (isFirstLoad) {
+            reject(new Error(errorMsg));
+          }
+          return;
+        }
+
+        const dbRules = snapshot.val();
+        const processedRules = {};
+
+        for (const shiftName in dbRules) {
+          const rules = dbRules[shiftName];
+          const lateTimeString = rules.Uptime;
+
+          if (lateTimeString) {
+            processedRules[shiftName] =
+              convertTimeFormatToDecimal(lateTimeString);
+          } else {
+            console.warn(
+              `Shift '${shiftName}' ក្នុង CheckInLate ខ្វះទិន្នន័យ 'Uptime'`
+            );
+          }
+        }
+
+        lateRulesFromDB = processedRules;
+        console.log("Late rules processed and loaded (Live):", lateRulesFromDB);
+
+        if (isFirstLoad) {
+          resolve();
+          isFirstLoad = false;
+        }
+      },
+      (error) => {
+        console.error("Error fetching late rules:", error);
+        if (isFirstLoad) {
+          reject(error);
+          isFirstLoad = false;
+        }
+        showMessage(
+          "បញ្ហា Realtime",
+          `បាត់បង់ការតភ្ជាប់ទៅ Late Rules៖ ${error.message}`,
+          true
+        );
+      }
+    );
+  });
+}
+
 async function startFaceScan(action) {
   currentScanAction = action;
 
@@ -724,9 +896,9 @@ async function startFaceScan(action) {
 
   cameraLoadingText.textContent = "កំពុងស្នើសុំកាមេរ៉ា...";
   cameraHelpText.textContent = "សូមអនុញ្ញាតឱ្យប្រើប្រាស់កាមេរ៉ា";
-  captureButton.style.display = "none"; // លាក់ប៊ូតុងសិន
-  captureButton.disabled = false; // ប្រាកដថាប៊ូតុងអាចចុចបាន
-  cameraCanvas.style.display = "none"; // លាក់ Canvas វិញ
+  captureButton.style.display = "none";
+  captureButton.disabled = false;
+  cameraCanvas.style.display = "none";
 
   cameraModal.classList.remove("modal-hidden");
   cameraModal.classList.add("modal-visible");
@@ -776,13 +948,14 @@ function hideCameraModal() {
     .clearRect(0, 0, cameraCanvas.width, cameraCanvas.height);
 }
 
+// --- *** ថ្មី: កែសម្រួល Performance (ប្រើ TinyFaceDetector) *** ---
 async function handleCaptureAndAnalyze() {
   if (!videoStream) return;
 
   cameraLoadingText.textContent = "កំពុងវិភាគ...";
   cameraHelpText.textContent = "សូមរង់ចាំបន្តិច";
-  captureButton.disabled = true; // បិទប៊ូតុងកុំឱ្យចុចซ้ำ
-  cameraCanvas.style.display = "none"; // មិនបាច់បង្ហាញ Canvas ទេ
+  captureButton.disabled = true;
+  cameraCanvas.style.display = "none";
 
   const displaySize = {
     width: videoElement.videoWidth,
@@ -790,57 +963,54 @@ async function handleCaptureAndAnalyze() {
   };
   faceapi.matchDimensions(cameraCanvas, displaySize);
 
-  // ថតរូបពីវីដេអូដាក់លើ Canvas
   cameraCanvas
     .getContext("2d")
     .drawImage(videoElement, 0, 0, displaySize.width, displaySize.height);
 
   try {
-    // វិភាគរូបភាពដែលថតបាន
     const detection = await faceapi
       .detectSingleFace(
-        cameraCanvas, // វិភាគពី Canvas
-        new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 })
+        cameraCanvas,
+        // --- *** ថ្មី: ប្តូរទៅ TinyFaceDetector (លឿន) *** ---
+        new faceapi.TinyFaceDetectorOptions()
       )
       .withFaceLandmarks()
       .withFaceDescriptor()
-      .withFaceExpressions(); // ទាមទារ Expression
+      .withFaceExpressions();
+    // --- *** ចប់ការកែសម្រួល *** ---
 
     if (!detection) {
       cameraLoadingText.textContent = "រកមិនឃើញផ្ទៃមុខ!";
       cameraHelpText.textContent = "សូមដាក់មុខឱ្យចំ រួចព្យាយាមម្តងទៀត។";
-      captureButton.disabled = false; // បើកប៊ូតុងវិញ
+      captureButton.disabled = false;
       return;
     }
 
     const expressions = detection.expressions;
-    const isHappy = expressions.happy > 0.8; // ត្រូវតែញញឹម 80%
+    const isHappy = expressions.happy > 0.8;
     const bestMatch = currentUserFaceMatcher.findBestMatch(
       detection.descriptor
     );
     const matchPercentage = Math.round((1 - bestMatch.distance) * 100);
 
-    // --- ពិនិត្យ Liveness (Smile) មុន ---
     if (!isHappy) {
       cameraLoadingText.textContent = "រកឃើញផ្ទៃមុខ តែ... 😐";
       cameraHelpText.textContent = "សូមញញឹមឱ្យបានច្បាស់ រួចសាកល្បងម្ដងទៀត។";
-      captureButton.disabled = false; // បើកប៊ូតុងវិញ
+      captureButton.disabled = false;
       return;
     }
 
-    // --- ពិនិត្យ Accuracy (Match) ---
     if (
       bestMatch.label === "unknown" ||
-      bestMatch.distance >= FACE_MATCH_THRESHOLD
+      bestMatch.distance >= FACE_MATCH_THRESHOLD // ឥឡូវនេះ 0.4 (60%)
     ) {
       cameraLoadingText.textContent = `មិនត្រឹមត្រូវ... (${matchPercentage}%)`;
       cameraHelpText.textContent =
         "នេះមិនមែនជាគណនីរបស់អ្នកទេ។ សូមព្យាយាមម្តងទៀត។";
-      captureButton.disabled = false; // បើកប៊ូតុងវិញ
+      captureButton.disabled = false;
       return;
     }
 
-    // --- ជោគជ័យ (ទាំង Liveness និង Accuracy) ---
     cameraLoadingText.textContent = `ស្គាល់ជា: ${currentUser.name} (${matchPercentage}%)`;
     cameraHelpText.textContent = "ជោគជ័យ! កំពុងបន្តដំណើរការ...";
 
@@ -851,7 +1021,7 @@ async function handleCaptureAndAnalyze() {
       } else if (currentScanAction === "checkOut") {
         handleCheckOut();
       }
-    }, 1000); // រង់ចាំ 1 វិនាទីឱ្យ User ឃើញ
+    }, 1000);
   } catch (e) {
     console.error("Analysis Error:", e);
     cameraLoadingText.textContent = "ការវិភាគមានបញ្ហា!";
@@ -859,6 +1029,7 @@ async function handleCaptureAndAnalyze() {
     captureButton.disabled = false;
   }
 }
+// --- *** ចប់ការកែសម្រួល *** ---
 
 // --- Main Functions ---
 
@@ -867,6 +1038,7 @@ async function initializeAppFirebase() {
     const attendanceApp = initializeApp(firebaseConfigAttendance);
     dbAttendance = getFirestore(attendanceApp);
     authAttendance = getAuth(attendanceApp);
+    dbAttendanceRTDB = getDatabase(attendanceApp);
 
     sessionCollectionRef = collection(dbAttendance, "active_sessions");
 
@@ -889,26 +1061,29 @@ async function initializeAppFirebase() {
 }
 
 async function setupAuthListener() {
-  return new Promise((resolve, reject) => {
-    onAuthStateChanged(authAttendance, async (user) => {
-      if (user) {
-        console.log("Firebase Auth user signed in:", user.uid);
+  onAuthStateChanged(authAttendance, async (user) => {
+    if (user) {
+      console.log("Firebase Auth user signed in:", user.uid);
+      try {
+        // --- ថ្មី: ប្រើ Promise.all ដើម្បីទាញច្បាប់ទាំងពីរ song song គ្នា ---
+        await Promise.all([fetchShiftRules(), fetchLateRules()]);
         await loadAIModels();
-        resolve();
-      } else {
-        try {
-          await signInAnonymously(authAttendance);
-        } catch (error) {
-          console.error("Firebase Sign In Error:", error);
-          showMessage(
-            "បញ្ហា Sign In",
-            `មិនអាច Sign In ទៅ Firebase បានទេ: ${error.message}`,
-            true
-          );
-          reject(error);
-        }
+      } catch (error) {
+        console.error("Error during startup (Rules or AI Models):", error);
+        showMessage("បញ្ហាក្នុងការចាប់ផ្ដើម", error.message, true);
       }
-    });
+    } else {
+      try {
+        await signInAnonymously(authAttendance);
+      } catch (error) {
+        console.error("Firebase Sign In Error:", error);
+        showMessage(
+          "បញ្ហា Sign In",
+          `មិនអាច Sign In ទៅ Firebase បានទេ: ${error.message}`,
+          true
+        );
+      }
+    }
   });
 }
 
@@ -972,10 +1147,8 @@ async function fetchGoogleSheetData() {
       .filter((emp) => emp.group !== "បុគ្គលិក");
 
     console.log(`Loaded ${allEmployees.length} employees (Filtered).`);
-    
-    // យើងលែងត្រូវការបង្ហាញបញ្ជីទៀតហើយ តែ Function នេះនៅតែត្រូវហៅ
-    // ដើម្បីឱ្យ Search ដំណើរការ
-    renderEmployeeList(allEmployees); 
+
+    renderEmployeeList(allEmployees);
 
     const savedEmployeeId = localStorage.getItem("savedEmployeeId");
     if (savedEmployeeId) {
@@ -1004,11 +1177,9 @@ async function fetchGoogleSheetData() {
   }
 }
 
-// Function នេះនៅតែត្រូវប្រើ ដើម្បីផ្ទុកទិន្នន័យចូលក្នុង List Container
-// ទោះបីជាវាមិនត្រូវបានបង្ហាញ (hidden) ក៏ដោយ
 function renderEmployeeList(employees) {
   employeeListContainer.innerHTML = "";
-  // employeeListContainer.classList.remove("hidden"); // << មិនបាច់បង្ហាញទេ
+  // employeeListContainer.classList.remove("hidden");
 
   if (employees.length === 0) {
     employeeListContainer.innerHTML = `<p class="text-center text-gray-500 p-3">រកមិនឃើញបុគ្គលិក (IT Support) ទេ។</p>`;
@@ -1105,8 +1276,8 @@ async function selectUser(employee) {
 
   prepareFaceMatcher(employee.photoUrl);
 
-  employeeListContainer.classList.add("hidden"); // លាក់ List វិញ
-  searchInput.value = ""; // សម្អាតប្រអប់ Search
+  employeeListContainer.classList.add("hidden");
+  searchInput.value = "";
 }
 
 function logout() {
@@ -1133,12 +1304,12 @@ function logout() {
 
   historyTableBody.innerHTML = "";
   if (noHistoryRow) {
-    noHistoryRow.cells[0].textContent = "មិនទាន់មានទិន្នន័យ";
+    noHistoryRow.textContent = "មិនទាន់មានទិន្នន័យ";
     historyTableBody.appendChild(noHistoryRow);
   }
   monthlyHistoryTableBody.innerHTML = "";
   if (noMonthlyHistoryRow) {
-    noMonthlyHistoryRow.cells[0].textContent = "មិនទាន់មានទិន្នន័យ";
+    noMonthlyHistoryRow.textContent = "មិនទាន់មានទិន្នន័យ";
     monthlyHistoryTableBody.appendChild(noMonthlyHistoryRow);
   }
 
@@ -1265,68 +1436,116 @@ function setupAttendanceListener() {
   );
 }
 
-function renderMonthlyHistory() {
-  monthlyHistoryTableBody.innerHTML = "";
+// --- Function ជំនួយសម្រាប់ Card ថ្មី ---
+function isTimeValue(value) {
+  if (!value) return false;
+  return value.includes("AM") || value.includes("PM");
+}
 
-  if (noMonthlyHistoryRow) {
-    noMonthlyHistoryRow.cells[0].textContent = "មិនទាន់មានទិន្នន័យ";
+function createHistoryCard(record, isToday = false) {
+  const formattedDate = record.formattedDate || record.date;
+
+  const isCheckInTime = isTimeValue(record.checkIn);
+  const isCheckOutTime = isTimeValue(record.checkOut);
+
+  // --- 1. រៀបចំ Check-in Value ---
+  let checkInHtml;
+  if (record.checkIn) {
+    if (record.checkIn.includes("(មកយឺត)")) {
+      checkInHtml = `<span class="history-item-value text-time-out">${record.checkIn}</span>`;
+    } else if (isCheckInTime) {
+      checkInHtml = `<span class="history-item-value text-time-in">${record.checkIn}</span>`;
+    } else {
+      checkInHtml = `<span class="history-item-value text-info">${record.checkIn}</span>`;
+    }
+  } else {
+    checkInHtml = isToday
+      ? `<span class="history-item-value text-absence">---</span>`
+      : `<span class="history-item-value text-absence">អវត្តមាន</span>`;
   }
 
+  // --- 2. រៀបចំ Check-out Value ---
+  let checkOutHtml;
+  if (record.checkOut) {
+    if (isCheckOutTime) {
+      checkOutHtml = `<span class="history-item-value text-time-out">${record.checkOut}</span>`;
+    } else {
+      checkOutHtml = `<span class="history-item-value text-info">${record.checkOut}</span>`;
+    }
+  } else {
+    checkOutHtml = isToday
+      ? `<span class="history-item-value text-absence">មិនទាន់ចេញ</span>`
+      : `<span class="history-item-value text-absence">អវត្តមាន</span>`;
+  }
+
+  // --- 3. សម្រេចចិត្ត Layout (2-Column Grid ឬ 1-Column Stack) ---
+  let contentLayoutHtml;
+
+  const useGrid =
+    (isCheckInTime || !record.checkIn) &&
+    (isCheckOutTime || !record.checkOut);
+
+  if (useGrid) {
+    // Layout 2-Column (សម្រាប់ ម៉ោង-ម៉ោង)
+    contentLayoutHtml = `
+      <div class="history-card-grid-2">
+        <div class="history-item">
+          <span class="history-item-label">ចូល</span>
+          ${checkInHtml}
+        </div>
+        <div class="history-item">
+          <span class="history-item-label">ចេញ</span>
+          ${checkOutHtml}
+        </div>
+      </div>
+    `;
+  } else {
+    // Layout Stacked (សម្រាប់ អក្សរ-អក្សរ, ម៉ោង-អក្សរ, អក្សរ-ម៉ោង)
+    contentLayoutHtml = `
+      <div class="history-card-stack-1">
+        <div class="history-item">
+          <span class="history-item-label">ចូល</span>
+          ${checkInHtml}
+        </div>
+        <div class="history-item">
+          <span class="history-item-label">ចេញ</span>
+          ${checkOutHtml}
+        </div>
+      </div>
+    `;
+  }
+
+  // --- 4. បង្កើត Card ទាំងមូល ---
+  const card = document.createElement("div");
+  card.className = "history-card";
+  card.innerHTML = `
+    <div class="history-card-date">${formattedDate}</div>
+    ${contentLayoutHtml}
+  `;
+  return card;
+}
+// --- *** ចប់ Function ជំនួយថ្មី *** ---
+
+function renderMonthlyHistory() {
+  monthlyHistoryTableBody.innerHTML = ""; // សម្អាត Div
+
   if (currentMonthRecords.length === 0) {
-    if (noMonthlyHistoryRow)
-      monthlyHistoryTableBody.appendChild(noMonthlyHistoryRow);
+    noMonthlyHistoryRow.textContent = "មិនទាន់មានទិន្នន័យ";
+    monthlyHistoryTableBody.appendChild(noMonthlyHistoryRow);
     return;
   }
 
   const todayString = getTodayDateString();
 
   currentMonthRecords.forEach((record) => {
-    const formattedDate = record.formattedDate || record.date;
     const isToday = record.date === todayString;
-
-    let checkInDisplay;
-    if (record.checkIn) {
-      if (record.checkIn.includes("AM") || record.checkIn.includes("PM")) {
-        checkInDisplay = `<span class="text-green-600 font-semibold">${record.checkIn}</span>`;
-      } else {
-        checkInDisplay = `<span class="text-blue-600 font-semibold">${record.checkIn}</span>`;
-      }
-    } else {
-      checkInDisplay = isToday
-        ? "---"
-        : '<span class="text-red-500 font-semibold">អវត្តមាន</span>';
-    }
-
-    let checkOutDisplay;
-    if (record.checkOut) {
-      if (record.checkOut.includes("AM") || record.checkOut.includes("PM")) {
-        checkOutDisplay = `<span class="text-red-600 font-semibold">${record.checkOut}</span>`;
-      } else {
-        checkOutDisplay = `<span class="text-blue-600 font-semibold">${record.checkOut}</span>`;
-      }
-    } else {
-      checkOutDisplay = isToday
-        ? '<span class="text-gray-400">មិនទាន់ចេញ</span>'
-        : '<span class="text-red-500 font-semibold">អវត្តមាន</span>';
-    }
-
-    const row = document.createElement("tr");
-    row.className = "hover:bg-gray-50";
-    row.innerHTML = `
-            <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-800">${formattedDate}</td>
-            <td class="px-4 py-3 whitespace-nowrap text-sm">${checkInDisplay}</td>
-            <td class="px-4 py-3 whitespace-nowrap text-sm">${checkOutDisplay}</td>
-        `;
-    monthlyHistoryTableBody.appendChild(row);
+    const card = createHistoryCard(record, isToday);
+    monthlyHistoryTableBody.appendChild(card);
   });
 }
 
 function renderTodayHistory() {
-  historyTableBody.innerHTML = "";
-
-  if (noHistoryRow) {
-    noHistoryRow.cells[0].textContent = "មិនទាន់មានទិន្នន័យថ្ងៃនេះ";
-  }
+  historyTableBody.innerHTML = ""; // សម្អាត Div
 
   const todayString = getTodayDateString();
   const todayRecord = currentMonthRecords.find(
@@ -1334,53 +1553,17 @@ function renderTodayHistory() {
   );
 
   if (!todayRecord) {
-    if (noHistoryRow) historyTableBody.appendChild(noHistoryRow);
+    noHistoryRow.textContent = "មិនទាន់មានទិន្នន័យថ្ងៃនេះ";
+    historyTableBody.appendChild(noHistoryRow);
     return;
   }
 
-  const formattedDate = todayRecord.formattedDate || todayRecord.date;
-
-  let checkInDisplay;
-  if (todayRecord.checkIn) {
-    if (
-      todayRecord.checkIn.includes("AM") ||
-      todayRecord.checkIn.includes("PM")
-    ) {
-      checkInDisplay = `<span class="text-green-600 font-semibold">${todayRecord.checkIn}</span>`;
-    } else {
-      checkInDisplay = `<span class="text-blue-600 font-semibold">${todayRecord.checkIn}</span>`;
-    }
-  } else {
-    checkInDisplay = "---";
-  }
-
-  let checkOutDisplay;
-  if (todayRecord.checkOut) {
-    if (
-      todayRecord.checkOut.includes("AM") ||
-      todayRecord.checkOut.includes("PM")
-    ) {
-      checkOutDisplay = `<span class="text-red-600 font-semibold">${todayRecord.checkOut}</span>`;
-    } else {
-      checkOutDisplay = `<span class="text-blue-600 font-semibold">${todayRecord.checkOut}</span>`;
-    }
-  } else {
-    checkOutDisplay = '<span class="text-gray-400">មិនទាន់ចេញ</span>';
-  }
-
-  const row = document.createElement("tr");
-  row.className = "hover:bg-gray-50";
-  row.innerHTML = `
-        <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-800">${formattedDate}</td>
-        <td class="px-4 py-3 whitespace-nowrap text-sm">${checkInDisplay}</td>
-        <td class="px-4 py-3 whitespace-nowrap text-sm">${checkOutDisplay}</td>
-    `;
-  historyTableBody.appendChild(row);
+  const card = createHistoryCard(todayRecord, true);
+  historyTableBody.appendChild(card);
 }
 
 function updateButtonState() {
   const todayString = getTodayDateString();
-
   const todayData = currentMonthRecords.find(
     (record) => record.date === todayString
   );
@@ -1388,50 +1571,43 @@ function updateButtonState() {
   const canCheckIn = checkShiftTime(currentUserShift, "checkIn");
   const canCheckOut = checkShiftTime(currentUserShift, "checkOut");
 
+  // --- ជំហានទី១: កំណត់ស្ថានភាពដំបូង (Default) ---
   checkInButton.disabled = false;
   checkOutButton.disabled = true;
   attendanceStatus.textContent = "សូមធ្វើការ Check-in";
   attendanceStatus.className =
     "text-center text-sm text-blue-700 pb-4 px-6 h-5";
 
-  if (!canCheckIn && !todayData) {
-    attendanceStatus.textContent = `ក្រៅម៉ោង Check-in (${currentUserShift})`;
-    attendanceStatus.className =
-      "text-center text-sm text-yellow-600 pb-4 px-6 h-5";
+  // --- ជំហានទី២: ពិនិត្យប្រសិនបើមិនទាន់ Check-in ---
+  if (!todayData) {
+    if (!canCheckIn) {
+      checkInButton.disabled = true;
+      attendanceStatus.textContent = `ក្រៅម៉ោង Check-in (${currentUserShift})`;
+      attendanceStatus.className =
+        "text-center text-sm text-red-700 pb-4 px-6 h-5";
+    }
+    return; // ចេញពី Function
   }
 
-  if (todayData) {
-    if (todayData.checkIn) {
-      checkInButton.disabled = true;
-      checkOutButton.disabled = false;
+  // --- ជំហានទី៣: ពិនិត្យប្រសិនបើបាន Check-in រួចហើយ ---
+  if (todayData.checkIn) {
+    checkInButton.disabled = true; // បិទ Check-in ជានិច្ច
 
-      if (
-        !todayData.checkIn.includes("AM") &&
-        !todayData.checkIn.includes("PM")
-      ) {
-        attendanceStatus.textContent = `ថ្ងៃនេះអ្នកមាន៖ ${todayData.checkIn}`;
-        attendanceStatus.className =
-          "text-center text-sm text-blue-700 pb-4 px-6 h-5";
-        checkOutButton.disabled = true;
-      } else {
-        attendanceStatus.textContent = `បាន Check-in ម៉ោង: ${todayData.checkIn}`;
-        attendanceStatus.className =
-          "text-center text-sm text-green-700 pb-4 px-6 h-5";
-      }
-
-      if (!canCheckOut && !todayData.checkOut) {
-        attendanceStatus.textContent = `ក្រៅម៉ោង Check-out (${currentUserShift})`;
-        attendanceStatus.className =
-          "text-center text-sm text-yellow-600 pb-4 px-6 h-5";
-      }
+    // ពិនិត្យមើលថា Check-in ជាអក្សរ (ច្បាប់) ឬជាម៉ោង
+    if (!isTimeValue(todayData.checkIn)) {
+      attendanceStatus.textContent = `ថ្ងៃនេះអ្នកមាន៖ ${todayData.checkIn}`;
+      attendanceStatus.className =
+        "text-center text-sm text-blue-700 pb-4 px-6 h-5";
+      checkOutButton.disabled = true; // បិទ Check-out ដែរ
+      return; // ចេញពី Function
     }
+
+    // --- ពេលនេះ យើងដឹងថា Check-in ជាម៉ោងធម្មតា ---
+
+    // ពិនិត្យមើលថា Check-out រួចហើយឬនៅ
     if (todayData.checkOut) {
       checkOutButton.disabled = true;
-
-      if (
-        !todayData.checkOut.includes("AM") &&
-        !todayData.checkOut.includes("PM")
-      ) {
+      if (!isTimeValue(todayData.checkOut)) {
         attendanceStatus.textContent = `ថ្ងៃនេះអ្នកមាន៖ ${todayData.checkOut}`;
         attendanceStatus.className =
           "text-center text-sm text-blue-700 pb-4 px-6 h-5";
@@ -1440,6 +1616,44 @@ function updateButtonState() {
         attendanceStatus.className =
           "text-center text-sm text-red-700 pb-4 px-6 h-5";
       }
+      return; // ចេញពី Function
+    }
+
+    // --- ពេលនេះ យើងដឹងថា Check-in រួច តែ Check-out មិនទាន់ ---
+    checkOutButton.disabled = false; // បើក Check-out (Default)
+    if (todayData.checkIn.includes("(មកយឺត)")) {
+      attendanceStatus.textContent = `បាន Check-in ម៉ោង: ${todayData.checkIn}`;
+      attendanceStatus.className =
+        "text-center text-sm text-red-700 pb-4 px-6 h-5"; // បង្ហាញពណ៌ក្រហម
+    } else {
+      attendanceStatus.textContent = `បាន Check-in ម៉ោង: ${todayData.checkIn}`;
+      attendanceStatus.className =
+        "text-center text-sm text-green-700 pb-4 px-6 h-5"; // បង្ហាញពណ៌បៃតង
+    }
+
+    // *** ពិនិត្យគម្លាត 10 នាទី (Cooldown) ***
+    const checkInTime = new Date(todayData.checkInTimestamp);
+    const now = new Date();
+    const diffMs = now.getTime() - checkInTime.getTime(); // គម្លាតគិតជា Milliseconds
+    const diffMins = Math.floor(diffMs / 60000); // បំប្លែងទៅជានាទី
+
+    if (diffMins < 10) {
+      checkOutButton.disabled = true;
+      const remainingMins = 10 - diffMins;
+      attendanceStatus.textContent = `សូមរង់ចាំ ${remainingMins} នាទីទៀត ទើបអាច Check-out បាន`;
+      attendanceStatus.className =
+        "text-center text-sm text-yellow-600 pb-4 px-6 h-5";
+      return; // ចេញពី Function
+    }
+    // *** ចប់ការពិនិត្យ 10 នាទី ***
+
+    // ពិនិត្យម៉ោងវេន (សម្រាប់តែវេនមិនមែន "Uptime")
+    if (!canCheckOut) {
+      attendanceStatus.textContent = `ក្រៅម៉ោង Check-out (${currentUserShift})`;
+      attendanceStatus.className =
+        "text-center text-sm text-yellow-600 pb-4 px-6 h-5";
+      checkOutButton.disabled = true;
+      return; // ចេញពី Function
     }
   }
 }
@@ -1494,6 +1708,21 @@ async function handleCheckIn() {
   const now = new Date();
   const todayDocId = getTodayDateString(now);
 
+  // --- *** ថ្មី: ពិនិត្យមើលការមកយឺត *** ---
+  const currentTime = now.getHours() + now.getMinutes() / 60;
+  let isLate = false;
+  let finalCheckInString = formatTime(now);
+
+  if (lateRulesFromDB && lateRulesFromDB[currentUserShift]) {
+    const lateTimeDecimal = lateRulesFromDB[currentUserShift];
+    // ពិនិត្យមើលថា វេននេះមិនមែន Uptime ហើយ ម៉ោងបច្ចុប្បន្នលើសកំណត់
+    if (currentUserShift !== "Uptime" && currentTime > lateTimeDecimal) {
+      isLate = true;
+      finalCheckInString += " (មកយឺត)"; // បន្ថែមពាក្យ "មកយឺត"
+    }
+  }
+  // --- *** ចប់ការពិនិត្យ *** ---
+
   const data = {
     employeeId: currentUser.id,
     employeeName: currentUser.name,
@@ -1506,7 +1735,7 @@ async function handleCheckIn() {
     checkInTimestamp: now.toISOString(),
     checkOutTimestamp: null,
     formattedDate: formatDate(now),
-    checkIn: formatTime(now),
+    checkIn: finalCheckInString, // <-- ប្រើ String ដែលបានកែប្រែ
     checkOut: null,
     checkInLocation: { lat: userCoords.latitude, lon: userCoords.longitude },
   };
@@ -1604,9 +1833,6 @@ function formatTime(date) {
 
 // --- Event Listeners ---
 
-// --- *** ថ្មី: ជំនួស Event Listeners ចាស់របស់ searchInput *** ---
-
-// 1. បន្ថែម Event Listener សម្រាប់ប៊ូតុង Login ថ្មី
 employeeLoginButton.addEventListener("click", () => {
   const searchTerm = searchInput.value.trim().toLowerCase();
 
@@ -1615,23 +1841,19 @@ employeeLoginButton.addEventListener("click", () => {
     return;
   }
 
-  // ជំហានទី១: ស្វែងរកអត្តលេខ (ID) ដែលตรงกันពិតប្រាកដ (Exact Match)
   let foundEmployee = allEmployees.find(
     (emp) => emp.id.trim().toLowerCase() === searchTerm
   );
 
-  // ជំហានទី២: បើរក ID មិនឃើញ, ស្វែងរកឈ្មោះ (Name) ដែលตรงกันពិតប្រាកដ
   if (!foundEmployee) {
     foundEmployee = allEmployees.find(
       (emp) => emp.name.trim().toLowerCase() === searchTerm
     );
   }
 
-  // ជំហានទី៣: ពិនិត្យលទ្ធផល
   if (foundEmployee) {
-    selectUser(foundEmployee); // ជោគជ័យ! ចូលប្រព័ន្ធ
+    selectUser(foundEmployee);
   } else {
-    // រកមិនឃើញ
     showMessage(
       "រកមិនឃើញ",
       "មិនមានគណនីនេះទេ។ សូមពិនិត្យអត្តលេខ ឬឈ្មោះរបស់អ្នកឡើងវិញ។",
@@ -1640,15 +1862,12 @@ employeeLoginButton.addEventListener("click", () => {
   }
 });
 
-// 2. បន្ថែមមុខងារចុច "Enter" លើប្រអប់ស្វែងរក
 searchInput.addEventListener("keypress", (e) => {
   if (e.key === "Enter") {
-    e.preventDefault(); // ការពារ Form Submit
-    employeeLoginButton.click(); // ធ្វើដូចការចុចប៊ូតុង
+    e.preventDefault();
+    employeeLoginButton.click();
   }
 });
-
-// --- *** ចប់ Event Listeners ថ្មី *** ---
 
 logoutButton.addEventListener("click", () => {
   showConfirmation(
@@ -1687,8 +1906,6 @@ modalConfirmButton.addEventListener("click", () => {
 });
 
 cameraCloseButton.addEventListener("click", hideCameraModal);
-
-// បន្ថែម Event Listener សម្រាប់ប៊ូតុងថត ត្រឡប់មកវិញ
 captureButton.addEventListener("click", handleCaptureAndAnalyze);
 
 navHomeButton.addEventListener("click", () => {
