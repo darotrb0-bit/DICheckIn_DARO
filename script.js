@@ -38,7 +38,7 @@ let modelsLoaded = false;
 let currentUserFaceMatcher = null;
 let currentScanAction = null; // 'checkIn' or 'checkOut'
 let videoStream = null;
-const FACE_MATCH_THRESHOLD = 0.3; // 70% match (Distance 0.3)
+const FACE_MATCH_THRESHOLD = 0.4; // 70% match (Distance 0.3)
 
 // --- << ថ្មី: Map សម្រាប់បកប្រែ Duration ជាអក្សរខ្មែរ >> ---
 const durationMap = {
