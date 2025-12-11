@@ -39,41 +39,48 @@
         <p class="text-sm text-gray-500 mt-2">សូមរង់ចាំបន្តិច</p>
       </div>
 
-      <div id="employeeListView" class="view flex flex-col flex-1" style="display: none">
-        <div id="employeeListHeader" class="p-6 pt-10 bg-gradient-to-br from-blue-600 to-blue-500 text-white flex flex-col items-center shadow-md rounded-b-3xl z-10">
-          <img
-            src="https://i.postimg.cc/FHBn0Fdf/di3-copy.png"
-            alt="Company Logo"
-            class="w-20 h-20 object-contain mb-4 rounded-full border-4 border-white/30 shadow-lg bg-white"
-          />
-          <h1 class="text-2xl font-bold text-center">ជ្រើសរើសបុគ្គលិក</h1>
-        </div>
-
-        <div id="employeeListContent" class="flex-1 overflow-y-auto -mt-4 pt-6 px-4 pb-4">
-          <p id="employeeListHelpText" class="text-center text-gray-600 text-sm mb-4 font-medium">
-            សូមស្វែងរកគណនីរបស់អ្នកដើម្បីបន្ត
-          </p>
-
-          <div id="searchContainer" class="relative sticky top-0 bg-white/90 backdrop-blur-sm pt-2 pb-4 z-10">
-            <div class="relative">
-                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
-                    </svg>
-                </div>
-                <input
-                  type="text"
-                  id="searchInput"
-                  class="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50 transition-all"
-                  placeholder="វាយឈ្មោះ ឬអត្តលេខ..."
-                  autocomplete="off"
-                />
+      <div id="employeeListView" class="view flex flex-col flex-1 h-screen bg-gray-50" style="display: none">
+    <div id="employeeListHeader" class="px-6 pt-12 pb-8 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-b-[2.5rem] shadow-lg z-10 relative overflow-hidden">
+        <div class="absolute top-0 right-0 w-32 h-32 bg-white opacity-5 rounded-full -mt-10 -mr-10"></div>
+        
+        <div class="flex flex-col items-center relative z-10">
+            <div class="p-1 bg-white/20 rounded-full mb-3 backdrop-blur-sm">
+                 <img
+                    src="https://i.postimg.cc/FHBn0Fdf/di3-copy.png"
+                    alt="Company Logo"
+                    class="w-16 h-16 object-contain rounded-full bg-white border-2 border-white/50"
+                 />
             </div>
-
-            <div id="employeeListContainer" class="absolute z-20 w-full left-0 top-full mt-2 bg-white border border-gray-100 rounded-xl shadow-xl max-h-80 overflow-y-auto hidden"></div>
-          </div>
+            <h1 class="text-xl font-bold tracking-wide">ប្រព័ន្ធវត្តមាន</h1>
+            <p class="text-blue-100 text-sm mt-1">ជ្រើសរើសគណនីរបស់អ្នក</p>
         </div>
-      </div>
+    </div>
+
+    <div class="flex-1 flex flex-col -mt-6 px-4 pb-4 overflow-hidden">
+        <div class="relative z-20 mb-4 px-2">
+            <div class="bg-white rounded-2xl shadow-lg shadow-blue-900/5 p-2">
+                <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                        </svg>
+                    </div>
+                    <input
+                        type="text"
+                        id="searchInput"
+                        class="w-full pl-10 pr-4 py-3 bg-gray-50 border-transparent focus:bg-white border focus:border-blue-500 rounded-xl text-gray-700 placeholder-gray-400 focus:outline-none transition-all font-medium"
+                        placeholder="ស្វែងរកឈ្មោះ ឬអត្តលេខ..."
+                        autocomplete="off"
+                    />
+                </div>
+            </div>
+        </div>
+
+        <div id="employeeListContent" class="flex-1 overflow-y-auto space-y-3 px-2 pb-20 scroll-smooth">
+             <div id="employeeListContainer" class="space-y-3"></div> 
+        </div>
+    </div>
+</div>
 
       <div id="homeView" class="view flex flex-col flex-1 overflow-y-auto bg-gray-50" style="display: none">
         <div class="px-6 py-4 flex justify-between items-center sticky top-0 bg-gray-50/95 backdrop-blur z-20">
