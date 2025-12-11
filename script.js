@@ -1791,6 +1791,51 @@ async function handleCheckIn() {
   }
 }
 
+// --- Function Check-in ថ្មី (គ្មានទីតាំង) ---
+async function handleCheckIn() {
+  if (!attendanceCollectionRef || !currentUser) return;
+
+  // បិទប៊ូតុងការពារការចុចស្ទួន
+  checkInButton.disabled = true;
+  checkOutButton.disabled = true;
+  
+  attendanceStatus.textContent = "កំពុងដំណើរការ Check-in...";
+  attendanceStatus.classList.add("animate-pulse");
+
+  const now = new Date();
+  const todayDocId = getTodayDateString(now);
+
+  // ទិន្នន័យដែលត្រូវរក្សាទុក (ដក checkInLocation ចេញ)
+  const data = {
+    employeeId: currentUser.id,
+    employeeName: currentUser.name,
+    department: currentUser.department,
+    group: currentUser.group,
+    grade: currentUser.grade,
+    gender: currentUser.gender,
+    shift: currentUserShift,
+    date: todayDocId,
+    checkInTimestamp: now.toISOString(),
+    checkOutTimestamp: null,
+    formattedDate: formatDate(now),
+    checkIn: formatTime(now),
+    checkOut: null,
+    checkInLocation: "Not Required", // ឬដាក់ null ក៏បាន
+  };
+
+  try {
+    const todayDocRef = doc(attendanceCollectionRef, todayDocId);
+    await setDoc(todayDocRef, data);
+    // ជោគជ័យ
+  } catch (error) {
+    console.error("Check In Error:", error);
+    showMessage("បញ្ហា", `មិនអាច Check-in បានទេ: ${error.message}`, true);
+    await updateButtonState(); // Re-enable buttons on error
+  } finally {
+    attendanceStatus.classList.remove("animate-pulse");
+  }
+}
+
 // --- Function Check-out ថ្មី (គ្មានទីតាំង) ---
 async function handleCheckOut() {
   if (!attendanceCollectionRef) return;
@@ -1820,70 +1865,6 @@ async function handleCheckOut() {
     console.error("Check Out Error:", error);
     showMessage("បញ្ហា", `មិនអាច Check-out បានទេ: ${error.message}`, true);
     await updateButtonState(); // Re-enable buttons on error
-  } finally {
-    attendanceStatus.classList.remove("animate-pulse");
-  }
-}
-
-// --- *** កែប្រែ: លុបការពិនិត្យម៉ោង (Shift Check) ចេញ *** ---
-async function handleCheckOut() {
-  if (!attendanceCollectionRef) return;
-
-  // Shift time check is already done by updateButtonState()
-
-  checkInButton.disabled = true;
-  checkOutButton.disabled = true;
-  attendanceStatus.textContent = "កំពុងពិនិត្យទីតាំង...";
-  attendanceStatus.classList.add("animate-pulse");
-
-  let userCoords;
-  try {
-    userCoords = await getUserLocation();
-    console.log("User location:", userCoords.latitude, userCoords.longitude);
-
-    if (!isInsideArea(userCoords.latitude, userCoords.longitude)) {
-      showMessage(
-        "បញ្ហាទីតាំង",
-        "អ្នកមិនស្ថិតនៅក្នុងទីតាំងកំណត់ទេ។ សូមចូលទៅក្នុងតំបន់ការិយាល័យ រួចព្យាយាមម្តងទៀត។",
-        true
-      );
-      // *** កែប្រែ: មិនត្រូវហៅ updateButtonState() ទេ ព្រោះវានឹងបង្កបញ្ហា Loop ***
-      attendanceStatus.classList.remove("animate-pulse");
-      attendanceStatus.textContent = "បរាជ័យ (ក្រៅទីតាំង)";
-      attendanceStatus.className =
-        "text-center text-sm text-red-700 pb-4 px-6 h-5";
-      // ត្រូវ Re-enable ប៊ូតុងដោយដៃ
-      await updateButtonState(); // ហៅម្តងទៀតដើម្បី Reset
-      return;
-    }
-
-    console.log("User is INSIDE the area.");
-  } catch (error) {
-    console.error("Location Error:", error.message);
-    showMessage("បញ្ហាទីតាំង", error.message, true);
-    await updateButtonState(); // ហៅម្តងទៀតដើម្បី Reset
-    attendanceStatus.classList.remove("animate-pulse");
-    return;
-  }
-
-  attendanceStatus.textContent = "កំពុងដំណើរការ Check-out...";
-
-  const now = new Date();
-  const todayDocId = getTodayDateString(now);
-
-  const data = {
-    checkOutTimestamp: now.toISOString(),
-    checkOut: formatTime(now),
-    checkOutLocation: { lat: userCoords.latitude, lon: userCoords.longitude },
-  };
-
-  try {
-    const todayDocRef = doc(attendanceCollectionRef, todayDocId);
-    await updateDoc(todayDocRef, data);
-  } catch (error) {
-    console.error("Check Out Error:", error);
-    showMessage("បញ្ហា", `មិនអាច Check-out បានទេ: ${error.message}`, true);
-    await updateButtonState(); // ហៅម្តងទៀតដើម្បី Reset
   } finally {
     attendanceStatus.classList.remove("animate-pulse");
   }
