@@ -1,11 +1,49 @@
-body {
-  font-family: "Kantumruy Pro", sans-serif;
+/* --- GLOBAL STYLES --- */
+:root {
+  --primary-color: #2563eb; /* Blue-600 */
+  --font-main: "Kantumruy Pro", sans-serif;
 }
 
-/* Loading Spinner */
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent; /* លុប Highlight ពណ៌ប្រផេះពេលចុចលើទូរស័ព្ទ */
+}
+
+body {
+  font-family: var(--font-main);
+  background-color: #f3f4f6; /* gray-100 */
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden; /* ការពារការរមូរទៅឆ្វេងស្តាំ */
+}
+
+/* បង្ខំ Font ឱ្យកន្លែងដែលមិនមែនជាអក្សរធម្មតា */
+button, input, select, textarea {
+  font-family: var(--font-main);
+}
+
+/* លាក់ Scrollbar តែនៅអាច Scroll បាន (សម្រាប់ Chrome/Safari/Webkit) */
+::-webkit-scrollbar {
+  width: 0px;
+  background: transparent;
+}
+
+/* ការពាររូបភាពមិនឱ្យធំជាងប្រអប់ */
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* --- UTILITIES --- */
+.whitespace-nowrap {
+  white-space: nowrap; /* ការពារអក្សរមិនឱ្យបាក់ជួរ (សំខាន់សម្រាប់ AM/PM) */
+}
+
+/* --- LOADING SPINNER --- */
 .loader {
   border: 4px solid #f3f3f3;
-  border-top: 4px solid #3498db;
+  border-top: 4px solid var(--primary-color);
   border-radius: 50%;
   width: 40px;
   height: 40px;
@@ -13,36 +51,14 @@ body {
 }
 
 @keyframes spin {
-  0% {
-    transform: rotate(0deg);
-  }
-
-  100% {
-    transform: rotate(360deg);
-  }
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
-/* Custom Modal */
-.modal {
-  transition: opacity 0.3s ease, transform 0.3s ease;
-}
-
-.modal-hidden {
-  opacity: 0;
-  transform: scale(0.95);
-  pointer-events: none;
-}
-
-.modal-visible {
-  opacity: 1;
-  transform: scale(1);
-  pointer-events: auto;
-}
-
-/* View Transitions */
+/* --- VIEW TRANSITIONS --- */
 .view {
-  /* JavaScript នឹងគ្រប់គ្រង display */
-  animation: fadeIn 0.5s ease;
+  animation: fadeIn 0.4s ease-out;
+  width: 100%;
 }
 
 @keyframes fadeIn {
@@ -50,217 +66,126 @@ body {
     opacity: 0;
     transform: translateY(10px);
   }
-
   to {
     opacity: 1;
     transform: translateY(0);
   }
 }
 
-/* Camera Modal Video/Canvas */
-#videoElement,
-#cameraCanvas {
-  /* ធានាថាកាមេរ៉ាមុខមិនត្រឡប់ (un-mirrored) */
-  transform: scaleX(-1);
-  -webkit-transform: scaleX(-1);
-  -moz-transform: scaleX(-1);
+/* --- MODALS (Popup) --- */
+.modal {
+  transition: opacity 0.3s ease, visibility 0.3s ease;
 }
 
-/* Styles សម្រាប់ប៊ូតុងថត */
+.modal-hidden {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.modal-visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+/* Modal Content Animation */
+.modal-visible > div {
+  animation: modalPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes modalPop {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* --- CAMERA STYLES --- */
+#videoElement,
+#cameraCanvas {
+  /* ត្រឡប់កាមេរ៉ាឱ្យដូចឆ្លុះកញ្ចក់ (Mirror Effect) */
+  transform: scaleX(-1);
+  -webkit-transform: scaleX(-1);
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Capture Button (Shutter) */
 .capture-button {
-  width: 64px;
-  height: 64px;
-  background-color: white;
+  width: 72px;
+  height: 72px;
+  background-color: transparent;
   border-radius: 50%;
-  border: 4px solid #e5e7eb;
+  border: 4px solid rgba(255, 255, 255, 0.8);
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-top: 16px;
-  z-index: 65;
   cursor: pointer;
   transition: all 0.2s ease;
+  padding: 0;
 }
 
-.capture-button:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+.capture-button:active {
+  transform: scale(0.95);
+  border-color: rgba(255, 255, 255, 1);
 }
 
 .capture-button-inner {
-  width: 48px;
-  height: 48px;
-  background-color: #ef4444;
+  width: 56px;
+  height: 56px;
+  background-color: #ef4444; /* red-500 */
   border-radius: 50%;
+  border: 2px solid white;
   transition: all 0.2s ease;
 }
 
 .capture-button:active .capture-button-inner {
+  background-color: #dc2626; /* red-600 */
   transform: scale(0.9);
 }
 
-/* --- (កូដ Z-index និង Blur ត្រូវបានដកចេញ ព្រោះលែងត្រូវការ) --- */
-
-/* --- *** ថ្មី: Styles សម្រាប់ Footer Navigation Bar *** --- */
-
-/* កែប្រែ៖
-  1. override h-16 (4rem) របស់ Tailwind ឱ្យទៅជា auto
-  2. ប្រើ padding ខាងលើ និង ខាងក្រោម ជំនួសវិញ
-  3. ប្រើ env(safe-area-inset-bottom) ដើម្បីរុញប៊ូតុងឱ្យផុត Home Bar
-*/
-#footerNav nav {
-  height: auto; /* Override h-16 */
-
-  /* 8px padding ធម្មតា សម្រាប់ខាងលើ */
-  padding-top: 0.5rem;
-
-  /* Fallback សម្រាប់ browser ចាស់ (1.5rem = 24px) */
-  padding-bottom: 1.5rem;
-
-  /* សម្រាប់ browser ថ្មី (iPhone/Android)
-       វានឹងយក Safe Area ពីខាងក្រោម (ឧ. 34px) 
-       បូកនឹង 0.75rem (12px) ទៀត ឱ្យវានៅឃ្លាតស្អាត
-    */
-  padding-bottom: calc(env(safe-area-inset-bottom) + 0.75rem);
+/* --- FOOTER NAVIGATION --- */
+#footerNav {
+  /* គាំទ្រ Safe Area របស់ iPhone (កន្លែងវាសដៃខាងក្រោម) */
+  padding-bottom: env(safe-area-inset-bottom);
+  height: calc(3.5rem + env(safe-area-inset-bottom)); /* កែសម្រួលកម្ពស់ */
 }
 
 .nav-button {
+  color: #9ca3af; /* gray-400 */
+  transition: color 0.3s ease, transform 0.2s ease;
+  background: none;
+  border: none;
+  cursor: pointer;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  flex-grow: 1;
-  color: #6b7280; /* text-gray-500 */
-  background-color: transparent;
-  border: none;
-  /* padding: 0.5rem 0; */ /* << ដកចេញ ព្រោះយើងកំណត់ Padding លើ <nav> វិញ */
-  transition: color 0.2s ease;
-  cursor: pointer;
 }
 
-.nav-button:hover {
-  color: #3b82f6; /* text-blue-500 */
+.nav-button:active {
+  transform: scale(0.95);
 }
 
 .nav-button.active-nav {
-  color: #2563eb; /* text-blue-600 */
+  color: var(--primary-color);
   font-weight: 600;
 }
 
-/* --- *** ចប់ Styles សម្រាប់ Footer Navigation Bar *** --- */
-
-
-/* --- *** ថ្មី: Styles សម្រាប់តារាងវត្តមានបែប Hybrid (Responsive Table) *** --- */
-
-@media (max-width: 400px) {
-  /* យើងកំណត់គោលដៅលើអេក្រង់តូចជាង 400px (ទូរស័ព្ទភាគច្រើន) */
-
-  /* 1. លាក់ក្បាលតារាង (thead) ដើម តែទុកឱ្យវារក្សាកន្លែង */
-  #historyTableBody thead,
-  #monthlyHistoryTableBody thead {
-    visibility: collapse; /* លាក់តែមើលមិនឃើញ តែនៅស៊ីកន្លែង */
-  }
-
-  /* 2. កំណត់ឱ្យ <tbody>, <tr>, <td> បង្ហាញជា Block (ដូច Card) */
-  #historyTableBody,
-  #monthlyHistoryTableBody,
-  #historyTableBody tr,
-  #monthlyHistoryTableBody tr,
-  #historyTableBody td,
-  #monthlyHistoryTableBody td {
-    display: block;
-    width: 100% !important;
-  }
-
-  /* 3. រចនា <tr> (แถว) ឱ្យដូចជា Card មួយ */
-  #historyTableBody tr,
-  #monthlyHistoryTableBody tr {
-    border-bottom: 1px solid #e5e7eb; /* border-gray-200 */
-    padding: 0.75rem 0.5rem; /* 12px top/bottom, 8px left/right */
-  }
-  
-  #historyTableBody tr:last-child,
-  #monthlyHistoryTableBody tr:last-child {
-      border-bottom: none;
-  }
-
-  /* 4. ដក padding ដើមរបស់ <td> ចេញ */
-  #historyTableBody td,
-  #monthlyHistoryTableBody td {
-    padding: 0.25rem 0; /* 4px top/bottom, 0 left/right */
-    white-space: normal; /* អនុញ្ញាតឱ្យអក្សរវែងៗ បាក់ជួរ */
-    height: auto;
-    border: none;
-  }
-
-  /* 5. រចនា <td> ទី 1 (កាលបរិច្ឆេទ) ឱ្យដូចជា Title */
-  #historyTableBody tr td:nth-child(1),
-  #monthlyHistoryTableBody tr td:nth-child(1) {
-    font-weight: 600; /* font-semibold */
-    color: #1f2937; /* text-gray-800 */
-    font-size: 0.875rem; /* text-sm */
-    margin-bottom: 0.25rem; /* 4px */
-  }
-
-  /* 6. រចនា <td> ទី 2 (ចូល) និង ទី 3 (ចេញ) 
-     យើងប្រើ grid ដើម្បីឱ្យ Label និង Value ត្រង់ជួរគ្នា */
-  #historyTableBody tr td:nth-child(2),
-  #monthlyHistoryTableBody tr td:nth-child(2),
-  #historyTableBody tr td:nth-child(3),
-  #monthlyHistoryTableBody tr td:nth-child(3) {
-    font-size: 0.875rem; /* text-sm */
-    display: grid;
-    grid-template-columns: 50px 1fr; /* 50px សម្រាប់ Label, 1fr សម្រាប់ Value */
-    align-items: start;
-  }
-
-  /* 7. ប្រើ pseudo-elements ដើម្បីបន្ថែម Label "ចូល:" និង "ចេញ:" */
-  #historyTableBody tr td:nth-child(2)::before,
-  #monthlyHistoryTableBody tr td:nth-child(2)::before {
-    content: "ចូល:";
-    font-weight: 500;
-    color: #4b5563; /* text-gray-600 */
-  }
-
-  #historyTableBody tr td:nth-child(3)::before,
-  #monthlyHistoryTableBody tr td:nth-child(3)::before {
-    content: "ចេញ:";
-    font-weight: 500;
-    color: #4b5563; /* text-gray-600 */
-  }
-
-  /* 8. ករណីពិសេសសម្រាប់ "អវត្តមាន" ឬ "មិនទាន់ចេញ" 
-     (CSS មុន គ្រប់គ្រង span, តែយើងត្រូវគ្រប់គ្រង text ផ្ទាល់) */
-  #historyTableBody tr td:nth-child(2):has(span.text-red-500)::before,
-  #monthlyHistoryTableBody tr td:nth-child(2):has(span.text-red-500)::before {
-     content: "ចូល:";
-  }
-  
-  #historyTableBody tr td:nth-child(3):has(span.text-gray-400)::before,
-  #monthlyHistoryTableBody tr td:nth-child(3):has(span.text-gray-400)::before,
-  #historyTableBody tr td:nth-child(3):has(span.text-red-500)::before,
-  #monthlyHistoryTableBody tr td:nth-child(3):has(span.text-red-500)::before {
-    content: "ចេញ:"; 
-  }
-
-  /* 9. លាក់ Label សម្រាប់ "ច្បាប់" (ព្រោះវារួមបញ្ចូលក្នុងអក្សរហើយ) 
-     យើងនឹងគ្រប់គ្រងវានៅក្នុង JavaScript ជំនួសវិញ ដើម្បីឱ្យកាន់តែច្បាស់លាស់ */
-
-  /* 10. កែតម្រូវแถว (row) "មិនទាន់មានទិន្នន័យ" */
-  #noHistoryRow td,
-  #noMonthlyHistoryRow td {
-    display: block;
-    text-align: center;
-    padding: 1rem;
-    font-weight: 500;
-    color: #6b7280; /* text-gray-500 */
-    grid-template-columns: 1fr; /* Reset grid */
-  }
-
-  /* 11. លាក់ Label សម្រាប់ "មិនទាន់មានទិន្នន័យ" */
-  #noHistoryRow td::before,
-  #noMonthlyHistoryRow td::before {
-    display: none;
-  }
+/* --- INPUT FIELD FIXES --- */
+/* ការពារការ Zoom លើ iPhone ពេលចុច Input (ដោយដាក់ Font 16px+) */
+#searchInput {
+  font-size: 16px; 
 }
-/* --- *** ចប់ Styles សម្រាប់តារាង Hybrid *** --- */
+
+/* Placeholder Styling */
+::placeholder {
+  color: #9ca3af;
+  opacity: 1;
+}
