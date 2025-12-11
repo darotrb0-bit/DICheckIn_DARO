@@ -1759,18 +1759,6 @@ function formatTime(date) {
 
 // 1. INPUT: សម្រាប់ស្វែងរកទិន្នន័យ (សំខាន់បំផុត)
 searchInput.addEventListener("input", (e) => {
-  const searchTerm = e.target.value.toLowerCase();
-  
-  // ច្រោះឈ្មោះបុគ្គលិក
-  const filteredEmployees = allEmployees.filter(
-    (emp) =>
-      emp.name.toLowerCase().includes(searchTerm) ||
-      emp.id.toLowerCase().includes(searchTerm)
-  );
-  
-  // បង្ហាញលទ្ធផល
-  renderEmployeeList(filteredEmployees);
-});
 
 // 2. FOCUS: ពេលចុចលើប្រអប់ស្វែងរក
 searchInput.addEventListener("focus", () => {
@@ -1787,17 +1775,50 @@ searchInput.addEventListener("focus", () => {
   }, 300);
 });
 
-// 3. BLUR: ពេលឈប់ចុច (ចុចកន្លែងផ្សេង)
-searchInput.addEventListener("blur", () => {
-  // ដក Effect ចេញវិញ
-  const searchContainer = document.getElementById("searchContainer");
-  if (searchContainer) {
-      searchContainer.classList.remove("ring-2", "ring-blue-100");
-  }
+// ==========================================
+// EVENT LISTENERS សម្រាប់ SEARCH INPUT (UPDATED)
+// ==========================================
+
+// 1. INPUT: ស្វែងរកឈ្មោះភ្លាមៗពេលវាយអក្សរ
+searchInput.addEventListener("input", (e) => {
+  const searchTerm = e.target.value.toLowerCase();
   
-  // បើចង់ឱ្យ Keyboard ចុះវិញស្រួល មិនបាច់ធ្វើអីបន្ថែមទេ
+  // ច្រោះយកឈ្មោះ ឬ អត្តលេខ ដែលត្រូវនឹងពាក្យស្វែងរក
+  const filteredEmployees = allEmployees.filter(
+    (emp) =>
+      emp.name.toLowerCase().includes(searchTerm) ||
+      emp.id.toLowerCase().includes(searchTerm)
+  );
+  
+  // បង្ហាញលទ្ធផលដែលរកឃើញ
+  renderEmployeeList(filteredEmployees);
 });
 
+// 2. FOCUS: ពេលចុចលើប្រអប់ស្វែងរក
+searchInput.addEventListener("focus", () => {
+  // *** ចំណុចសំខាន់: យើងលែងលាក់ Header ទៀតហើយ ដើម្បីកុំឱ្យអេក្រង់លោត ***
+  
+  // បន្ថែម Effect ពណ៌ខៀវជុំវិញប្រអប់ ដើម្បីឱ្យស្អាត
+  const searchWrapper = searchInput.parentElement.parentElement;
+  if (searchWrapper) {
+      searchWrapper.classList.add("ring-2", "ring-blue-400", "ring-offset-2");
+  }
+
+  // រមូរអេក្រង់បន្តិចដើម្បីឱ្យប្រអប់ស្វែងរកមកនៅកណ្តាល (ការពារកុំឱ្យ Keyboard បាំង)
+  setTimeout(() => {
+    searchInput.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, 300);
+});
+
+// 3. BLUR: ពេលឈប់ចុច (ចុចកន្លែងផ្សេង)
+searchInput.addEventListener("blur", () => {
+  // ដក Effect ពណ៌ខៀវចេញវិញ
+  const searchWrapper = searchInput.parentElement.parentElement;
+  if (searchWrapper) {
+      searchWrapper.classList.remove("ring-2", "ring-blue-400", "ring-offset-2");
+  }
+});
+  
 logoutButton.addEventListener("click", () => {
   showConfirmation(
     "ចាកចេញ",
