@@ -103,13 +103,7 @@ const firebaseConfigLeave = {
   measurementId: "G-KDPHXZ7H4B",
 };
 
-// --- តំបន់ទីតាំង (Polygon Geofence) ---
-const allowedAreaCoords = [
-  [11.415206789703271, 104.7642005060435],
-  [11.41524294053174, 104.76409925265823],
-  [11.413750665249953, 104.7633762203053],
-  [11.41370399757057, 104.7634714387206],
-];
+
 
 // --- DOM Elements ---
 const loadingView = document.getElementById("loadingView");
@@ -364,68 +358,8 @@ function checkShiftTime(shiftType, checkType) {
   return false;
 }
 
-function getUserLocation() {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error("Geolocation is not supported by your browser."));
-      return;
-    }
 
-    const options = {
-      enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 0,
-    };
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        resolve(position.coords);
-      },
-      (error) => {
-        switch (error.code) {
-          case error.PERMISSION_DENIED:
-            reject(
-              new Error(
-                "សូមអនុញ្ញាតឱ្យប្រើប្រាស់ទីតាំង។ ប្រសិនបើអ្នកបាន Block, សូមចូលទៅកាន់ Site Settings របស់ Browser ដើម្បី Allow។"
-              )
-            );
-            break;
-          case error.POSITION_UNAVAILABLE:
-            reject(new Error("មិនអាចទាញយកទីតាំងបានទេ។"));
-            break;
-          case error.TIMEOUT:
-            reject(new Error("អស់ពេលកំណត់ក្នុងការទាញយកទីតាំង។"));
-            break;
-          default:
-            reject(new Error("មានបញ្ហាក្នុងការទាញយកទីតាំង។"));
-        }
-      },
-      options
-    );
-  });
-}
-
-function isInsideArea(lat, lon) {
-  const polygon = allowedAreaCoords;
-  let isInside = false;
-  const x = lon;
-  const y = lat;
-
-  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-    const viy = polygon[i][0];
-    const vix = polygon[i][1];
-    const vjy = polygon[j][0];
-    const vjx = polygon[j][1];
-
-    const intersect =
-      viy > y !== vjy > y && x < ((vjx - vix) * (y - viy)) / (vjy - viy) + vix;
-
-    if (intersect) {
-      isInside = !isInside;
-    }
-  }
-  return isInside;
-}
 
 // --- *** ថ្មី: Helper សម្រាប់ពិនិត្យទិន្នន័យខ្លី/វែង (សម្រាប់ Smart Card) *** ---
 function isShortData(htmlString) {
@@ -1811,145 +1745,94 @@ async function updateButtonState() {
 }
 
 
-// --- *** កែប្រែ: លុបការពិនិត្យម៉ោង (Shift Check) ចេញ *** ---
+// --- Function Check-in ថ្មី (គ្មាន GPS) ---
 async function handleCheckIn() {
-  if (!attendanceCollectionRef || !currentUser) return;
+  if (!attendanceCollectionRef || !currentUser) return;
 
-  // Shift time check is already done by updateButtonState()
+  // បិទប៊ូតុងដើម្បីកុំឱ្យចុចស្ទួន
+  checkInButton.disabled = true;
+  checkOutButton.disabled = true;
+  
+  // បង្ហាញស្ថានភាព
+  attendanceStatus.textContent = "កំពុងដំណើរការ Check-in...";
+  attendanceStatus.classList.add("animate-pulse");
 
-  checkInButton.disabled = true;
-  checkOutButton.disabled = true;
-  attendanceStatus.textContent = "កំពុងពិនិត្យទីតាំង...";
-  attendanceStatus.classList.add("animate-pulse");
+  const now = new Date();
+  const todayDocId = getTodayDateString(now);
 
-  let userCoords;
-  try {
-    userCoords = await getUserLocation();
-    console.log("User location:", userCoords.latitude, userCoords.longitude);
+  // រៀបចំទិន្នន័យ (ដាក់ Location ជា null)
+  const data = {
+    employeeId: currentUser.id,
+    employeeName: currentUser.name,
+    department: currentUser.department,
+    group: currentUser.group,
+    grade: currentUser.grade,
+    gender: currentUser.gender,
+    shift: currentUserShift,
+    date: todayDocId,
+    checkInTimestamp: now.toISOString(),
+    checkOutTimestamp: null,
+    formattedDate: formatDate(now),
+    checkIn: formatTime(now),
+    checkOut: null,
+    checkInLocation: null, // លែងត្រូវការទីតាំង
+  };
 
-    if (!isInsideArea(userCoords.latitude, userCoords.longitude)) {
-      showMessage(
-        "បញ្ហាទីតាំង",
-        "អ្នកមិនស្ថិតនៅក្នុងទីតាំងកំណត់ទេ។ សូមចូលទៅក្នុងតំបន់ការិយាល័យ រួចព្យាយាមម្តងទៀត។",
-        true
-      );
-      // *** កែប្រែ: មិនត្រូវហៅ updateButtonState() ទេ ព្រោះវានឹងបង្កបញ្ហា Loop ***
-      attendanceStatus.classList.remove("animate-pulse");
-      attendanceStatus.textContent = "បរាជ័យ (ក្រៅទីតាំង)";
-      attendanceStatus.className =
-        "text-center text-sm text-red-700 pb-4 px-6 h-5";
-      // ត្រូវ Re-enable ប៊ូតុងដោយដៃ
-      await updateButtonState(); // ហៅម្តងទៀតដើម្បី Reset
-      return;
-    }
-
-    console.log("User is INSIDE the area.");
-  } catch (error) {
-    console.error("Location Error:", error.message);
-    showMessage("បញ្ហាទីតាំង", error.message, true);
-    await updateButtonState(); // ហៅម្តងទៀតដើម្បី Reset
-    attendanceStatus.classList.remove("animate-pulse");
-    return;
-  }
-
-  attendanceStatus.textContent = "កំពុងដំណើរការ Check-in...";
-
-  const now = new Date();
-  const todayDocId = getTodayDateString(now);
-
-  const data = {
-    employeeId: currentUser.id,
-    employeeName: currentUser.name,
-    department: currentUser.department,
-    group: currentUser.group,
-    grade: currentUser.grade,
-    gender: currentUser.gender,
-    shift: currentUserShift,
-    date: todayDocId,
-    checkInTimestamp: now.toISOString(),
-    checkOutTimestamp: null,
-    formattedDate: formatDate(now),
-    checkIn: formatTime(now),
-    checkOut: null,
-    checkInLocation: { lat: userCoords.latitude, lon: userCoords.longitude },
-  };
-
-  try {
-    const todayDocRef = doc(attendanceCollectionRef, todayDocId);
-    await setDoc(todayDocRef, data);
-  } catch (error) {
-    console.error("Check In Error:", error);
-    showMessage("បញ្ហា", `មិនអាច Check-in បានទេ: ${error.message}`, true);
-    await updateButtonState(); // ហៅម្តងទៀតដើម្បី Reset
-  } finally {
-    attendanceStatus.classList.remove("animate-pulse");
-  }
+  try {
+    const todayDocRef = doc(attendanceCollectionRef, todayDocId);
+    await setDoc(todayDocRef, data);
+    
+    // ជោគជ័យ
+    attendanceStatus.textContent = "Check-in ជោគជ័យ!";
+    attendanceStatus.className = "text-center text-sm text-green-700 pb-4 px-6 h-5";
+    
+  } catch (error) {
+    console.error("Check In Error:", error);
+    showMessage("បញ្ហា", `មិនអាច Check-in បានទេ: ${error.message}`, true);
+    await updateButtonState(); // Reset ប៊ូតុងវិញបើមានបញ្ហា
+  } finally {
+    attendanceStatus.classList.remove("animate-pulse");
+  }
 }
 
-// --- *** កែប្រែ: លុបការពិនិត្យម៉ោង (Shift Check) ចេញ *** ---
+// --- Function Check-out ថ្មី (គ្មាន GPS) ---
 async function handleCheckOut() {
-  if (!attendanceCollectionRef) return;
+  if (!attendanceCollectionRef) return;
 
-  // Shift time check is already done by updateButtonState()
+  // បិទប៊ូតុង
+  checkInButton.disabled = true;
+  checkOutButton.disabled = true;
+  
+  // បង្ហាញស្ថានភាព
+  attendanceStatus.textContent = "កំពុងដំណើរការ Check-out...";
+  attendanceStatus.classList.add("animate-pulse");
 
-  checkInButton.disabled = true;
-  checkOutButton.disabled = true;
-  attendanceStatus.textContent = "កំពុងពិនិត្យទីតាំង...";
-  attendanceStatus.classList.add("animate-pulse");
+  const now = new Date();
+  const todayDocId = getTodayDateString(now);
 
-  let userCoords;
-  try {
-    userCoords = await getUserLocation();
-    console.log("User location:", userCoords.latitude, userCoords.longitude);
+  // រៀបចំទិន្នន័យ (ដាក់ Location ជា null)
+  const data = {
+    checkOutTimestamp: now.toISOString(),
+    checkOut: formatTime(now),
+    checkOutLocation: null, // លែងត្រូវការទីតាំង
+  };
 
-    if (!isInsideArea(userCoords.latitude, userCoords.longitude)) {
-      showMessage(
-        "បញ្ហាទីតាំង",
-        "អ្នកមិនស្ថិតនៅក្នុងទីតាំងកំណត់ទេ។ សូមចូលទៅក្នុងតំបន់ការិយាល័យ រួចព្យាយាមម្តងទៀត។",
-        true
-      );
-      // *** កែប្រែ: មិនត្រូវហៅ updateButtonState() ទេ ព្រោះវានឹងបង្កបញ្ហា Loop ***
-      attendanceStatus.classList.remove("animate-pulse");
-      attendanceStatus.textContent = "បរាជ័យ (ក្រៅទីតាំង)";
-      attendanceStatus.className =
-        "text-center text-sm text-red-700 pb-4 px-6 h-5";
-      // ត្រូវ Re-enable ប៊ូតុងដោយដៃ
-      await updateButtonState(); // ហៅម្តងទៀតដើម្បី Reset
-      return;
-    }
+  try {
+    const todayDocRef = doc(attendanceCollectionRef, todayDocId);
+    await updateDoc(todayDocRef, data);
+    
+    // ជោគជ័យ
+    attendanceStatus.textContent = "Check-out ជោគជ័យ!";
+    attendanceStatus.className = "text-center text-sm text-green-700 pb-4 px-6 h-5";
 
-    console.log("User is INSIDE the area.");
-  } catch (error) {
-    console.error("Location Error:", error.message);
-    showMessage("បញ្ហាទីតាំង", error.message, true);
-    await updateButtonState(); // ហៅម្តងទៀតដើម្បី Reset
-    attendanceStatus.classList.remove("animate-pulse");
-    return;
-  }
-
-  attendanceStatus.textContent = "កំពុងដំណើរការ Check-out...";
-
-  const now = new Date();
-  const todayDocId = getTodayDateString(now);
-
-  const data = {
-    checkOutTimestamp: now.toISOString(),
-    checkOut: formatTime(now),
-    checkOutLocation: { lat: userCoords.latitude, lon: userCoords.longitude },
-  };
-
-  try {
-    const todayDocRef = doc(attendanceCollectionRef, todayDocId);
-    await updateDoc(todayDocRef, data);
-  } catch (error) {
-    console.error("Check Out Error:", error);
-    showMessage("បញ្ហា", `មិនអាច Check-out បានទេ: ${error.message}`, true);
-    await updateButtonState(); // ហៅម្តងទៀតដើម្បី Reset
-  } finally {
-    attendanceStatus.classList.remove("animate-pulse");
-  }
+  } catch (error) {
+    console.error("Check Out Error:", error);
+    showMessage("បញ្ហា", `មិនអាច Check-out បានទេ: ${error.message}`, true);
+    await updateButtonState(); // Reset ប៊ូតុងវិញបើមានបញ្ហា
+  } finally {
+    attendanceStatus.classList.remove("animate-pulse");
+  }
 }
-
 
 function formatTime(date) {
   if (!date) return null;
