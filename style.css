@@ -9,17 +9,22 @@
   -webkit-tap-highlight-color: transparent; /* លុប Highlight ពណ៌ប្រផេះពេលចុចលើទូរស័ព្ទ */
 }
 
+/* បន្ថែម/កែសម្រួល ក្នុង style.css */
 body {
-  font-family: var(--font-main);
-  background-color: #f3f4f6; /* gray-100 */
+  font-family: "Kantumruy Pro", sans-serif;
+  background-color: #f3f4f6;
   margin: 0;
   padding: 0;
-  overflow-x: hidden; /* ការពារការរមូរទៅឆ្វេងស្តាំ */
+  overflow-x: hidden;
+  /* ធ្វើឱ្យអក្សរខ្មែរមើលទៅម៉ដ្ឋ និងច្បាស់ជាងមុន */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* បង្ខំ Font ឱ្យកន្លែងដែលមិនមែនជាអក្សរធម្មតា */
-button, input, select, textarea {
-  font-family: var(--font-main);
+/* កែសម្រួល Input ឱ្យអក្សរធំល្មមមើល */
+input, button, select, textarea {
+  font-family: "Kantumruy Pro", sans-serif;
+  letter-spacing: 0.3px; /* បន្ថែមគម្លាតអក្សរបន្តិច */
 }
 
 /* លាក់ Scrollbar តែនៅអាច Scroll បាន (សម្រាប់ Chrome/Safari/Webkit) */
