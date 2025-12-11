@@ -23,7 +23,7 @@ import {
 // --- Global Variables ---
 let dbAttendance, dbLeave, authAttendance;
 let allEmployees = [];
-let currentMonthRecords = [];
+let currentMonthRecords = []; // Merged data
 let attendanceRecords = [];
 let leaveRecords = [];
 let currentUser = null;
@@ -34,26 +34,27 @@ let leaveCollectionListener = null;
 let outCollectionListener = null;
 let currentConfirmCallback = null;
 
-// --- Session Variables ---
+// --- Session & Device Lock ---
 let sessionCollectionRef = null;
 let sessionListener = null;
 let currentDeviceId = null;
 
-// --- AI & Camera Variables ---
+// --- AI & Camera ---
 let modelsLoaded = false;
 let currentUserFaceMatcher = null;
 let currentScanAction = null; // 'checkIn' or 'checkOut'
 let videoStream = null;
 const FACE_MATCH_THRESHOLD = 0.5;
 
-// --- Helper Maps ---
+// --- Maps & Configs ---
 const durationMap = {
-  មួយថ្ងៃកន្លះ: 1.5, ពីរថ្ងៃ: 2, ពីរថ្ងៃកន្លះ: 2.5, បីថ្ងៃ: 3, បីថ្ងៃកន្លះ: 3.5,
-  បួនថ្ងៃ: 4, បួនថ្ងៃកន្លះ: 4.5, ប្រាំថ្ងៃ: 5, ប្រាំថ្ងៃកន្លះ: 5.5,
-  ប្រាំមួយថ្ងៃ: 6, ប្រាំមួយថ្ងៃកន្លះ: 6.5, ប្រាំពីរថ្ងៃ: 7,
+  "មួយថ្ងៃ": 1, "មួយព្រឹក": 0.5, "មួយរសៀល": 0.5,
+  "មួយថ្ងៃកន្លះ": 1.5, "ពីរថ្ងៃ": 2, "ពីរថ្ងៃកន្លះ": 2.5, 
+  "បីថ្ងៃ": 3, "បីថ្ងៃកន្លះ": 3.5, "បួនថ្ងៃ": 4, "បួនថ្ងៃកន្លះ": 4.5, 
+  "ប្រាំថ្ងៃ": 5, "ប្រាំថ្ងៃកន្លះ": 5.5, "ប្រាំមួយថ្ងៃ": 6, 
+  "ប្រាំមួយថ្ងៃកន្លះ": 6.5, "ប្រាំពីរថ្ងៃ": 7,
 };
 
-// --- Google Sheet Config ---
 const SHEET_ID = "1eRyPoifzyvB4oBmruNyXcoKMKPRqjk6xDD6-bPNW6pc";
 const SHEET_NAME = "DIList";
 const GVIZ_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${SHEET_NAME}&range=E9:AJ`;
@@ -63,7 +64,6 @@ const COL_INDEX = {
   SHIFT_FRI: 28, SHIFT_SAT: 29, SHIFT_SUN: 30, PHOTO: 31,
 };
 
-// --- Firebase Configs ---
 const firebaseConfigAttendance = {
   apiKey: "AIzaSyCgc3fq9mDHMCjTRRHD3BPBL31JkKZgXFc",
   authDomain: "checkme-10e18.firebaseapp.com",
@@ -94,7 +94,6 @@ const footerNav = document.getElementById("footerNav");
 
 const navHomeButton = document.getElementById("navHomeButton");
 const navHistoryButton = document.getElementById("navHistoryButton");
-
 const searchInput = document.getElementById("searchInput");
 const employeeListContainer = document.getElementById("employeeListContainer");
 
@@ -109,7 +108,6 @@ const profileDepartment = document.getElementById("profileDepartment");
 const profileGroup = document.getElementById("profileGroup");
 const profileGrade = document.getElementById("profileGrade");
 const profileShift = document.getElementById("profileShift");
-const profileGender = document.getElementById("profileGender"); // Hidden but kept for logic
 
 const checkInButton = document.getElementById("checkInButton");
 const checkOutButton = document.getElementById("checkOutButton");
@@ -145,11 +143,9 @@ function changeView(viewId) {
   historyView.style.display = "none";
   footerNav.style.display = "none";
 
-  if (viewId === "loadingView") {
-    loadingView.style.display = "flex";
-  } else if (viewId === "employeeListView") {
-    employeeListView.style.display = "flex";
-  } else if (viewId === "homeView") {
+  if (viewId === "loadingView") loadingView.style.display = "flex";
+  else if (viewId === "employeeListView") employeeListView.style.display = "flex";
+  else if (viewId === "homeView") {
     homeView.style.display = "flex";
     footerNav.style.display = "block";
   } else if (viewId === "historyView") {
@@ -163,11 +159,9 @@ function showMessage(title, message, isError = false) {
   modalMessage.textContent = message;
   modalTitle.classList.toggle("text-red-600", isError);
   modalTitle.classList.toggle("text-gray-800", !isError);
-
   modalConfirmButton.textContent = "យល់ព្រម";
   modalCancelButton.style.display = "none";
   currentConfirmCallback = null;
-
   customModal.classList.remove("modal-hidden");
   customModal.classList.add("modal-visible");
 }
@@ -177,11 +171,9 @@ function showConfirmation(title, message, confirmText, onConfirm) {
   modalMessage.textContent = message;
   modalTitle.classList.remove("text-red-600");
   modalTitle.classList.add("text-gray-800");
-
   modalConfirmButton.textContent = confirmText;
   modalCancelButton.style.display = "block";
   currentConfirmCallback = onConfirm;
-
   customModal.classList.remove("modal-hidden");
   customModal.classList.add("modal-visible");
 }
@@ -211,7 +203,6 @@ function getCurrentMonthRange() {
 }
 
 const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-
 function formatDate(date) {
   if (!date) return "";
   try {
@@ -233,7 +224,6 @@ function formatTime(date) {
   return `${strHours}:${minutes} ${ampm}`;
 }
 
-// Map for parsing leave dates
 const monthMap = { Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5, Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11 };
 function parseLeaveDate(dateString) {
   if (!dateString) return null;
@@ -251,17 +241,14 @@ function parseLeaveDate(dateString) {
 function checkShiftTime(shiftType, checkType) {
   if (!shiftType || shiftType === "N/A") return false;
   if (shiftType === "Uptime") return true;
-
   const now = new Date();
   const currentTime = now.getHours() + now.getMinutes() / 60;
-
   const shiftRules = {
     ពេញម៉ោង: { checkIn: [6.83, 10.25], checkOut: [17.5, 22.25] },
     ពេលយប់: { checkIn: [17.66, 19.25], checkOut: [20.91, 22.83] },
     មួយព្រឹក: { checkIn: [6.83, 10.25], checkOut: [11.5, 13.25] },
     មួយរសៀល: { checkIn: [11.83, 14.5], checkOut: [17.5, 22.25] },
   };
-
   const rules = shiftRules[shiftType];
   if (!rules) return false;
   const [min, max] = rules[checkType];
@@ -274,40 +261,126 @@ function checkShiftTime(shiftType, checkType) {
 
 async function fetchAllLeaveForMonth(employeeId) {
   if (!dbLeave) return [];
+  
   const { startOfMonth, endOfMonth } = getCurrentMonthRange();
   const startMonthDate = new Date(startOfMonth + "T00:00:00");
   const endMonthDate = new Date(endOfMonth + "T23:59:59");
   let allLeaveRecords = [];
 
-  // Logic to fetch leave data (omitted detailed parsing for brevity, assume similar to original)
-  // Note: Detailed parsing logic is needed here if you want leave to show up. 
-  // Restoring basic fetch logic from original prompt:
+  // 1. Fetch from 'leave_requests'
   try {
-     const qLeave = query(collection(dbLeave, "/artifacts/default-app-id/public/data/leave_requests"), where("userId", "==", employeeId), where("status", "==", "approved"));
-     const leaveSnapshot = await getDocs(qLeave);
-     leaveSnapshot.forEach((doc) => {
+    const qLeave = query(
+      collection(dbLeave, "/artifacts/default-app-id/public/data/leave_requests"),
+      where("userId", "==", employeeId),
+      where("status", "==", "approved")
+    );
+    const leaveSnapshot = await getDocs(qLeave);
+
+    leaveSnapshot.forEach((doc) => {
+      const data = doc.data();
+      const startDate = parseLeaveDate(data.startDate);
+      if (!startDate) return;
+
+      const durationStr = data.duration;
+      const durationNum = durationMap[durationStr] || parseFloat(durationStr);
+      const isMultiDay = !isNaN(durationNum) && durationNum > 0;
+
+      if (isMultiDay) {
+        const daysToSpan = Math.ceil(durationNum);
+        for (let i = 0; i < daysToSpan; i++) {
+          const currentLeaveDate = new Date(startDate);
+          currentLeaveDate.setDate(startDate.getDate() + i);
+
+          if (currentLeaveDate >= startMonthDate && currentLeaveDate <= endMonthDate) {
+            let leaveLabel = `ច្បាប់ ${durationStr}`;
+            // ករណីកន្លះថ្ងៃនៅថ្ងៃចុងក្រោយ
+            const isHalfDay = (durationNum % 1 !== 0); 
+            if (isHalfDay && i === daysToSpan - 1) {
+               allLeaveRecords.push({
+                 date: getTodayDateString(currentLeaveDate),
+                 formattedDate: formatDate(currentLeaveDate),
+                 checkIn: `${leaveLabel} (ព្រឹក)`,
+                 checkOut: null 
+               });
+            } else {
+               allLeaveRecords.push({
+                 date: getTodayDateString(currentLeaveDate),
+                 formattedDate: formatDate(currentLeaveDate),
+                 checkIn: leaveLabel,
+                 checkOut: leaveLabel
+               });
+            }
+          }
+        }
+      } else {
+        // Single Day cases (Morning/Afternoon)
+        if (startDate >= startMonthDate && startDate <= endMonthDate) {
+           const dateStr = getTodayDateString(startDate);
+           const formatted = formatDate(startDate);
+           if (durationStr === "មួយព្រឹក") {
+             allLeaveRecords.push({ date: dateStr, formattedDate: formatted, checkIn: `ច្បាប់ ${durationStr}`, checkOut: null });
+           } else if (durationStr === "មួយរសៀល") {
+             allLeaveRecords.push({ date: dateStr, formattedDate: formatted, checkIn: null, checkOut: `ច្បាប់ ${durationStr}` });
+           } else {
+             allLeaveRecords.push({ date: dateStr, formattedDate: formatted, checkIn: `ច្បាប់ ${durationStr}`, checkOut: `ច្បាប់ ${durationStr}` });
+           }
+        }
+      }
+    });
+  } catch (e) { console.error("Leave Error:", e); }
+
+  // 2. Fetch from 'out_requests'
+  try {
+    const qOut = query(
+      collection(dbLeave, "/artifacts/default-app-id/public/data/out_requests"),
+      where("userId", "==", employeeId),
+      where("status", "==", "approved")
+    );
+    const outSnapshot = await getDocs(qOut);
+    outSnapshot.forEach((doc) => {
         const data = doc.data();
         const startDate = parseLeaveDate(data.startDate);
         if(!startDate) return;
-        if(startDate >= startMonthDate && startDate <= endMonthDate) {
-             allLeaveRecords.push({ date: getTodayDateString(startDate), checkIn: `ច្បាប់ ${data.duration}`, checkOut: `ច្បាប់ ${data.duration}` });
+        
+        if (startDate >= startMonthDate && startDate <= endMonthDate) {
+            const dateStr = getTodayDateString(startDate);
+            const formatted = formatDate(startDate);
+            const type = data.duration || "N/A";
+            const label = `ច្បាប់ ${type}`;
+            
+            if (type === "មួយព្រឹក") {
+                allLeaveRecords.push({ date: dateStr, formattedDate: formatted, checkIn: label, checkOut: null });
+            } else if (type === "មួយរសៀល") {
+                allLeaveRecords.push({ date: dateStr, formattedDate: formatted, checkIn: null, checkOut: label });
+            } else {
+                allLeaveRecords.push({ date: dateStr, formattedDate: formatted, checkIn: label, checkOut: label });
+            }
         }
-     });
-  } catch(e) { console.error(e); }
+    });
+  } catch (e) { console.error("Out Request Error:", e); }
+
   return allLeaveRecords;
 }
 
 async function mergeAndRenderHistory() {
   const mergedMap = new Map();
+  // 1. Add Attendance
   for (const record of attendanceRecords) mergedMap.set(record.date, { ...record });
-  // For simplicity, just merging basic leave logic. 
-  // In full prod code, ensure the fetchAllLeaveForMonth returns proper structure
+  
+  // 2. Add Leave (Overwrite or Fill)
   for (const leave of leaveRecords) {
-     if(!mergedMap.has(leave.date)) mergedMap.set(leave.date, leave);
+    const existing = mergedMap.get(leave.date);
+    if (existing) {
+      if (leave.checkIn && !existing.checkIn) existing.checkIn = leave.checkIn;
+      if (leave.checkOut && !existing.checkOut) existing.checkOut = leave.checkOut;
+    } else {
+      mergedMap.set(leave.date, { ...leave });
+    }
   }
   
   currentMonthRecords = Array.from(mergedMap.values());
   const todayString = getTodayDateString();
+  
   currentMonthRecords.sort((a, b) => {
     const aDate = a.date || "";
     const bDate = b.date || "";
@@ -330,24 +403,40 @@ async function updateButtonState() {
   let statusMessage = "សូមធ្វើការ Check-in";
   let statusClass = "text-gray-500";
 
+  // Check Data Status
   if (todayData && todayData.checkIn) {
-    checkInDisabled = true;
-    checkOutDisabled = false; 
-    statusMessage = `បាន Check-in ម៉ោង: ${todayData.checkIn}`;
-    statusClass = "text-green-600";
+    // If it's a leave text (e.g. "ច្បាប់..."), block checkin
+    if (todayData.checkIn.includes("ច្បាប់")) {
+       checkInDisabled = true;
+       statusMessage = `ថ្ងៃនេះ៖ ${todayData.checkIn}`;
+       statusClass = "text-blue-600";
+    } else {
+       // Regular Check-in
+       checkInDisabled = true;
+       checkOutDisabled = false; 
+       statusMessage = `បាន Check-in ម៉ោង: ${todayData.checkIn}`;
+       statusClass = "text-green-600";
+    }
     
     if (todayData.checkOut) {
       checkOutDisabled = true;
-      statusMessage = `បាន Check-out ម៉ោង: ${todayData.checkOut}`;
-      statusClass = "text-red-600";
+      // If full day leave
+      if (todayData.checkIn.includes("ច្បាប់") && todayData.checkOut.includes("ច្បាប់")) {
+         statusMessage = `${todayData.checkIn}`;
+      } else {
+         statusMessage = `បាន Check-out ម៉ោង: ${todayData.checkOut}`;
+         statusClass = "text-red-600";
+      }
     }
   }
 
+  // Shift Check (Visual Only since GPS is gone)
   const canCheckIn = checkShiftTime(currentUserShift, "checkIn");
   
-  // Basic visual warning if outside shift, but not blocking (since GPS is removed, we rely on Face)
   if (!todayData || !todayData.checkIn) {
-      if (!canCheckIn) { /* Optional: statusMessage += " (ក្រៅម៉ោង)"; */ }
+      if (!canCheckIn) {
+         // statusMessage += " (ក្រៅម៉ោង)"; // Uncomment if desired
+      }
   }
 
   checkInButton.disabled = checkInDisabled;
@@ -648,6 +737,7 @@ function renderEmployeeList(employees) {
 function renderTodayHistory() {
   const container = document.getElementById("historyContainer");
   const noDataRow = document.getElementById("noHistoryRow");
+  if(!container || !noDataRow) return;
   container.innerHTML = "";
 
   const todayString = getTodayDateString();
@@ -658,17 +748,16 @@ function renderTodayHistory() {
     return;
   }
 
-  // Grid Layout for Today (Fixes alignment issue)
+  // Grid Layout for Today
   const card = document.createElement("div");
   card.className = "bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden";
   
-  const checkInText = todayRecord.checkIn 
-    ? `<span class="font-bold text-green-700 whitespace-nowrap">${todayRecord.checkIn}</span>`
-    : `<span class="text-gray-400 text-sm">---</span>`;
-    
-  const checkOutText = todayRecord.checkOut
-    ? `<span class="font-bold text-red-700 whitespace-nowrap">${todayRecord.checkOut}</span>`
-    : `<span class="text-gray-400 text-sm italic">មិនទាន់ចេញ</span>`;
+  // Helper to colorize
+  const formatVal = (val, isCheckIn) => {
+      if(!val) return isCheckIn ? `<span class="text-gray-400 text-sm">---</span>` : `<span class="text-gray-400 text-sm italic">មិនទាន់ចេញ</span>`;
+      if(val.includes("ច្បាប់")) return `<span class="font-bold text-blue-600 text-xs whitespace-nowrap">${val.replace("ច្បាប់", "")}</span>`;
+      return `<span class="font-bold ${isCheckIn ? 'text-green-700' : 'text-red-700'} whitespace-nowrap">${val}</span>`;
+  };
 
   card.innerHTML = `
     <div class="bg-blue-600 px-4 py-2 flex justify-between items-center text-white">
@@ -678,11 +767,11 @@ function renderTodayHistory() {
     <div class="p-4 grid grid-cols-2 gap-4 divide-x divide-gray-100">
        <div class="flex flex-col items-center justify-center space-y-1">
           <span class="text-xs text-gray-500 font-medium uppercase tracking-wider">ម៉ោងចូល</span>
-          ${checkInText}
+          ${formatVal(todayRecord.checkIn, true)}
        </div>
        <div class="flex flex-col items-center justify-center space-y-1">
           <span class="text-xs text-gray-500 font-medium uppercase tracking-wider">ម៉ោងចេញ</span>
-          ${checkOutText}
+          ${formatVal(todayRecord.checkOut, false)}
        </div>
     </div>
   `;
@@ -692,6 +781,7 @@ function renderTodayHistory() {
 function renderMonthlyHistory() {
   const container = document.getElementById("monthlyHistoryContainer");
   const noDataRow = document.getElementById("noMonthlyHistoryRow");
+  if(!container || !noDataRow) return;
   container.innerHTML = "";
 
   if (currentMonthRecords.length === 0) {
@@ -702,12 +792,13 @@ function renderMonthlyHistory() {
   currentMonthRecords.forEach(record => {
     const isToday = record.date === getTodayDateString();
     
+    // Logic for display
     const checkInDisplay = record.checkIn 
-        ? `<span class="font-bold text-green-700 whitespace-nowrap">${record.checkIn}</span>`
+        ? `<span class="font-bold ${record.checkIn.includes('ច្បាប់') ? 'text-blue-600' : 'text-green-700'} whitespace-nowrap text-sm">${record.checkIn}</span>`
         : `<span class="text-red-500 text-xs font-medium">អវត្តមាន</span>`;
         
     const checkOutDisplay = record.checkOut
-        ? `<span class="font-bold text-red-700 whitespace-nowrap">${record.checkOut}</span>`
+        ? `<span class="font-bold ${record.checkOut.includes('ច្បាប់') ? 'text-blue-600' : 'text-red-700'} whitespace-nowrap text-sm">${record.checkOut}</span>`
         : `<span class="text-gray-400 text-xs">---</span>`;
 
     const card = document.createElement("div");
