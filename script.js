@@ -1111,53 +1111,39 @@ async function fetchGoogleSheetData() {
   }
 }
 
-// ជំនួស function renderEmployeeList ទាំងមូល
 function renderEmployeeList(employees) {
-  const container = document.getElementById("employeeListContainer"); // ត្រូវប្រាកដថា HTML ថ្មីមាន ID នេះ
-  container.innerHTML = "";
+  const container = document.getElementById("employeeListContainer");
   
-  // បង្ហាញ Container ព្រោះក្នុង HTML ថ្មីយើងលែងប្រើ Dropdown absolute ហើយ
-  // យើងប្រើ List ធម្មតាវិញ
-  const contentArea = document.getElementById("employeeListContent");
-  contentArea.style.display = "block";
+  // Clear ចាស់ចោល
+  container.innerHTML = "";
 
   if (employees.length === 0) {
     container.innerHTML = `
-        <div class="flex flex-col items-center justify-center py-10 text-gray-400">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mb-2 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <p class="text-sm font-medium">រកមិនឃើញទិន្នន័យ</p>
+        <div class="text-center py-10">
+            <p class="text-gray-400">រកមិនឃើញទិន្នន័យ</p>
         </div>`;
     return;
   }
 
   employees.forEach((emp) => {
     const card = document.createElement("div");
-    // រចនាប័ទ្មថ្មី: Card តូចល្មម (Compact Row)
-    card.className = "group bg-white rounded-2xl p-3 shadow-sm border border-gray-100 flex items-center space-x-4 cursor-pointer hover:bg-blue-50 hover:border-blue-200 transition-all active:scale-[0.98]";
+    // Card រចនាថ្មី (តូចល្មម)
+    card.className = "bg-white p-3 rounded-xl shadow-sm border border-gray-100 flex items-center space-x-3 cursor-pointer hover:bg-blue-50 active:scale-95 transition-all";
     
     card.innerHTML = `
-      <div class="relative">
-          <img src="${emp.photoUrl || "https://placehold.co/48x48/e2e8f0/64748b?text=Img"}" 
-               alt="Photo" 
-               class="w-14 h-14 rounded-full object-cover border-2 border-gray-100 group-hover:border-blue-300 transition-colors"
-               onerror="this.src='https://placehold.co/48x48/e2e8f0/64748b?text=Error'">
-          <div class="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full"></div>
+      <img src="${emp.photoUrl || "https://placehold.co/48x48/e2e8f0/64748b?text=Img"}" 
+           class="w-12 h-12 rounded-full object-cover border border-gray-200"
+           onerror="this.src='https://placehold.co/48x48/e2e8f0/64748b?text=Err'">
+      
+      <div class="flex-1 min-w-0">
+          <h3 class="text-sm font-bold text-gray-800 truncate">${emp.name}</h3>
+          <p class="text-xs text-gray-500">ID: ${emp.id} <span class="text-gray-300">|</span> ${emp.group}</p>
       </div>
 
-      <div class="flex-1 min-w-0 text-left">
-          <h3 class="text-base font-bold text-gray-800 group-hover:text-blue-700 truncate">${emp.name}</h3>
-          <div class="flex items-center space-x-2 mt-0.5">
-             <span class="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded text-center min-w-[3rem]">ID: ${emp.id}</span>
-             <span class="text-xs text-gray-400 truncate">| ${emp.group}</span>
-          </div>
-      </div>
-
-      <div class="text-gray-300 group-hover:text-blue-500 pr-2">
-         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-         </svg>
+      <div class="text-gray-300">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+        </svg>
       </div>
     `;
     
@@ -1769,30 +1755,47 @@ function formatTime(date) {
 
 // --- Event Listeners ---
 
+// --- Event Listeners សម្រាប់ Search Input (Update Full) ---
+
+// 1. INPUT: សម្រាប់ស្វែងរកទិន្នន័យ (សំខាន់បំផុត)
 searchInput.addEventListener("input", (e) => {
-  const searchTerm = e.target.value.toLowerCase();
-  const filteredEmployees = allEmployees.filter(
-    (emp) =>
-      emp.name.toLowerCase().includes(searchTerm) ||
-      emp.id.toLowerCase().includes(searchTerm)
-  );
-  renderEmployeeList(filteredEmployees);
+  const searchTerm = e.target.value.toLowerCase();
+  
+  // ច្រោះឈ្មោះបុគ្គលិក
+  const filteredEmployees = allEmployees.filter(
+    (emp) =>
+      emp.name.toLowerCase().includes(searchTerm) ||
+      emp.id.toLowerCase().includes(searchTerm)
+  );
+  
+  // បង្ហាញលទ្ធផល
+  renderEmployeeList(filteredEmployees);
 });
 
+// 2. FOCUS: ពេលចុចលើប្រអប់ស្វែងរក
 searchInput.addEventListener("focus", () => {
-  employeeListHeader.style.display = "none";
-  employeeListHelpText.style.display = "none";
-  employeeListContent.style.paddingTop = "1.5rem";
-  renderEmployeeList(allEmployees);
+  // *** កែសម្រួល៖ មិនត្រូវលាក់ Header ទេ ដើម្បីកុំឱ្យអេក្រង់លោត ***
+  // យើងគ្រាន់តែបន្ថែម Effect ឱ្យដឹងថាកំពុងវាយអក្សរ
+  const searchContainer = document.getElementById("searchContainer");
+  if (searchContainer) {
+      searchContainer.classList.add("ring-2", "ring-blue-100");
+  }
+  
+  // ធានាថាប្រអប់ស្វែងរកមិនត្រូវបានបាំង
+  setTimeout(() => {
+    searchInput.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, 300);
 });
 
+// 3. BLUR: ពេលឈប់ចុច (ចុចកន្លែងផ្សេង)
 searchInput.addEventListener("blur", () => {
-  setTimeout(() => {
-    employeeListHeader.style.display = "flex";
-    employeeListHelpText.style.display = "block";
-    employeeListContent.style.paddingTop = "";
-    employeeListContainer.classList.add("hidden");
-  }, 200);
+  // ដក Effect ចេញវិញ
+  const searchContainer = document.getElementById("searchContainer");
+  if (searchContainer) {
+      searchContainer.classList.remove("ring-2", "ring-blue-100");
+  }
+  
+  // បើចង់ឱ្យ Keyboard ចុះវិញស្រួល មិនបាច់ធ្វើអីបន្ថែមទេ
 });
 
 logoutButton.addEventListener("click", () => {
