@@ -103,13 +103,7 @@ const firebaseConfigLeave = {
   measurementId: "G-KDPHXZ7H4B",
 };
 
-// --- តំបន់ទីតាំង (Polygon Geofence) ---
-const allowedAreaCoords = [
-  [11.415206789703271, 104.7642005060435],
-  [11.41524294053174, 104.76409925265823],
-  [11.413750665249953, 104.7633762203053],
-  [11.41370399757057, 104.7634714387206],
-];
+
 
 // --- DOM Elements ---
 const loadingView = document.getElementById("loadingView");
@@ -364,68 +358,8 @@ function checkShiftTime(shiftType, checkType) {
   return false;
 }
 
-function getUserLocation() {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error("Geolocation is not supported by your browser."));
-      return;
-    }
 
-    const options = {
-      enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 0,
-    };
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        resolve(position.coords);
-      },
-      (error) => {
-        switch (error.code) {
-          case error.PERMISSION_DENIED:
-            reject(
-              new Error(
-                "សូមអនុញ្ញាតឱ្យប្រើប្រាស់ទីតាំង។ ប្រសិនបើអ្នកបាន Block, សូមចូលទៅកាន់ Site Settings របស់ Browser ដើម្បី Allow។"
-              )
-            );
-            break;
-          case error.POSITION_UNAVAILABLE:
-            reject(new Error("មិនអាចទាញយកទីតាំងបានទេ។"));
-            break;
-          case error.TIMEOUT:
-            reject(new Error("អស់ពេលកំណត់ក្នុងការទាញយកទីតាំង។"));
-            break;
-          default:
-            reject(new Error("មានបញ្ហាក្នុងការទាញយកទីតាំង។"));
-        }
-      },
-      options
-    );
-  });
-}
-
-function isInsideArea(lat, lon) {
-  const polygon = allowedAreaCoords;
-  let isInside = false;
-  const x = lon;
-  const y = lat;
-
-  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
-    const viy = polygon[i][0];
-    const vix = polygon[i][1];
-    const vjy = polygon[j][0];
-    const vjx = polygon[j][1];
-
-    const intersect =
-      viy > y !== vjy > y && x < ((vjx - vix) * (y - viy)) / (vjy - viy) + vix;
-
-    if (intersect) {
-      isInside = !isInside;
-    }
-  }
-  return isInside;
-}
 
 // --- *** ថ្មី: Helper សម្រាប់ពិនិត្យទិន្នន័យខ្លី/វែង (សម្រាប់ Smart Card) *** ---
 function isShortData(htmlString) {
