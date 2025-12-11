@@ -330,11 +330,11 @@ function checkShiftTime(shiftType, checkType) {
   const shiftRules = {
     ពេញម៉ោង: {
       checkIn: [6.83, 10.25],
-      checkOut: [17.5, 20.25],
+      checkOut: [17.5, 22.25],
     },
     ពេលយប់: {
       checkIn: [17.66, 19.25],
-      checkOut: [20.91, 21.83],
+      checkOut: [20.91, 22.83],
     },
     មួយព្រឹក: {
       checkIn: [6.83, 10.25],
@@ -342,7 +342,7 @@ function checkShiftTime(shiftType, checkType) {
     },
     មួយរសៀល: {
       checkIn: [11.83, 14.5],
-      checkOut: [17.5, 20.25],
+      checkOut: [17.5, 22.25],
     },
   };
 
