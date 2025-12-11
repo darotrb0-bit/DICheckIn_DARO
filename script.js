@@ -1432,223 +1432,123 @@ function setupAttendanceListener() {
   );
 }
 
-function renderMonthlyHistory() {
-  const container = document.getElementById("monthlyHistoryContainer");
-  const noDataRow = document.getElementById("noMonthlyHistoryRow");
-  if (!container || !noDataRow) return; // បង្ការ Error
-  
-  container.innerHTML = ""; // លុប Card ចាស់ៗចេញ
-
-  if (currentMonthRecords.length === 0) {
-    container.appendChild(noDataRow);
-    return;
-  }
-
-  const todayString = getTodayDateString();
-
-  currentMonthRecords.forEach((record) => {
-    const formattedDate = record.formattedDate || record.date;
-    const isToday = record.date === todayString;
-
-    // --- បង្កើត String សម្រាប់បង្ហាញ (ដូចមុន) ---
-    let checkInDisplay;
-    if (record.checkIn) {
-      if (record.checkIn.includes("AM") || record.checkIn.includes("PM")) {
-        checkInDisplay = `<span class="text-green-600 font-semibold">${record.checkIn}</span>`;
-      } else {
-        checkInDisplay = `<span class="text-blue-600 font-semibold">${record.checkIn}</span>`;
-      }
-    } else {
-      checkInDisplay = isToday
-        ? "---"
-        : '<span class="text-red-500 font-semibold">អវត្តមាន</span>';
-    }
-
-    let checkOutDisplay;
-    if (record.checkOut) {
-      if (record.checkOut.includes("AM") || record.checkOut.includes("PM")) {
-        checkOutDisplay = `<span class="text-red-600 font-semibold">${record.checkOut}</span>`;
-      } else {
-        checkOutDisplay = `<span class="text-blue-600 font-semibold">${record.checkOut}</span>`;
-      }
-    } else {
-      checkOutDisplay = isToday
-        ? '<span class="text-gray-400">មិនទាន់ចេញ</span>'
-        : '<span class="text-red-500 font-semibold">អវត្តមាន</span>';
-    }
-
-    // --- *** ថ្មី: "Smart" Card Layout Logic *** ---
-    const isCheckInShort = isShortData(checkInDisplay);
-    const isCheckOutShort = isShortData(checkOutDisplay);
-
-    // ប្រសិនបើ ទាំង "ចូល" និង "ចេញ" ខ្លី, ប្រើ Layout "2 ជួរ"
-    const useCompactLayout = isCheckInShort && isCheckOutShort;
-
-    const card = document.createElement("div");
-    card.className = "bg-white p-4 rounded-lg shadow-sm border border-gray-100";
-
-    let contentHTML = "";
-
-    if (useCompactLayout) {
-      // Layout "2 ជួរ" (សម្រាប់ទិន្នន័យខ្លី)
-      contentHTML = `
-        <p class="text-sm font-semibold text-gray-800 mb-2">${formattedDate}</p>
-        <div class="grid grid-cols-2 gap-2">
-          <div class="text-sm">
-            <span class="text-gray-500">ចូល:</span> ${checkInDisplay}
-          </div>
-          <div class="text-sm">
-            <span class="text-gray-500">ចេញ:</span> ${checkOutDisplay}
-          </div>
-        </div>
-      `;
-    } else {
-      // Layout "3 ជួរ" (សម្រាប់ទិន្នន័យវែង)
-      contentHTML = `
-        <p class="text-sm font-semibold text-gray-800 mb-3">${formattedDate}</p>
-        <div class="flex flex-col space-y-2 text-sm">
-          <div>
-            <span class="text-gray-500 block text-xs">ចូល:</span>
-            ${checkInDisplay}
-          </div>
-          <div>
-            <span class="text-gray-500 block text-xs">ចេញ:</span>
-            ${checkOutDisplay}
-          </div>
-        </div>
-      `;
-
-      // ករណីពិសេស: បើជាច្បាប់ពេញមួយថ្ងៃ (អក្សរ "ចូល" និង "ចេញ" ដូចគ្នា)
-      if (
-        record.checkIn &&
-        record.checkOut &&
-        record.checkIn === record.checkOut &&
-        !isCheckInShort // ហើយវាជាអក្សរវែង
-      ) {
-        contentHTML = `
-          <p class="text-sm font-semibold text-gray-800 mb-2">${formattedDate}</p>
-          <div class="text-sm">
-            ${checkInDisplay} 
-          </div>
-        `;
-      }
-    }
-
-    card.innerHTML = contentHTML;
-    container.appendChild(card);
-  });
-}
-
+// --- 1. កែសម្រួល Function បង្ហាញប្រវត្តិថ្ងៃនេះ ---
 function renderTodayHistory() {
-  const container = document.getElementById("historyContainer");
-  const noDataRow = document.getElementById("noHistoryRow");
-  if (!container || !noDataRow) return; // បង្ការ Error
+  const container = document.getElementById("historyContainer");
+  const noDataRow = document.getElementById("noHistoryRow");
+  if (!container || !noDataRow) return;
 
-  container.innerHTML = ""; // លុប Card ចាស់ៗចេញ
+  container.innerHTML = "";
 
-  const todayString = getTodayDateString();
-  const todayRecord = currentMonthRecords.find(
-    (record) => record.date === todayString
-  );
+  const todayString = getTodayDateString();
+  const todayRecord = currentMonthRecords.find(
+    (record) => record.date === todayString
+  );
 
-  if (!todayRecord) {
-    container.appendChild(noDataRow);
-    return;
-  }
+  if (!todayRecord) {
+    container.appendChild(noDataRow);
+    return;
+  }
 
-  const formattedDate = todayRecord.formattedDate || todayRecord.date;
+  const formattedDate = todayRecord.formattedDate || todayRecord.date;
 
-  // --- បង្កើត String សម្រាប់បង្ហាញ (ដូចមុន) ---
-  let checkInDisplay;
-  if (todayRecord.checkIn) {
-    if (
-      todayRecord.checkIn.includes("AM") ||
-      todayRecord.checkIn.includes("PM")
-    ) {
-      checkInDisplay = `<span class="text-green-600 font-semibold">${todayRecord.checkIn}</span>`;
-    } else {
-      checkInDisplay = `<span class="text-blue-600 font-semibold">${todayRecord.checkIn}</span>`;
-    }
-  } else {
-    checkInDisplay = "---";
-  }
+  // កំណត់ពណ៌ និងអក្សរ (ដាក់ក្នុង span តែមួយកុំឱ្យដាច់ AM/PM)
+  let checkInDisplay = todayRecord.checkIn 
+      ? `<span class="font-bold text-green-700 whitespace-nowrap">${todayRecord.checkIn}</span>`
+      : `<span class="text-gray-400 text-sm">---</span>`;
 
-  let checkOutDisplay;
-  if (todayRecord.checkOut) {
-    if (
-      todayRecord.checkOut.includes("AM") ||
-      todayRecord.checkOut.includes("PM")
-    ) {
-      checkOutDisplay = `<span class="text-red-600 font-semibold">${todayRecord.checkOut}</span>`;
-    } else {
-      checkOutDisplay = `<span class="text-blue-600 font-semibold">${todayRecord.checkOut}</span>`;
-    }
-  } else {
-    checkOutDisplay = '<span class="text-gray-400">មិនទាន់ចេញ</span>';
-  }
+  let checkOutDisplay = todayRecord.checkOut
+      ? `<span class="font-bold text-red-700 whitespace-nowrap">${todayRecord.checkOut}</span>`
+      : `<span class="text-gray-400 text-sm italic">មិនទាន់ចេញ</span>`;
 
-  // --- *** ថ្មី: "Smart" Card Layout Logic *** ---
-  const isCheckInShort = isShortData(checkInDisplay);
-  const isCheckOutShort = isShortData(checkOutDisplay);
+  const card = document.createElement("div");
+  // ប្រើ Grid ដើម្បីធានាថាវាចែក 2 ផ្នែកស្មើគ្នា
+  card.className = "bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden";
+  
+  card.innerHTML = `
+    <div class="bg-blue-600 px-4 py-2 flex justify-between items-center text-white">
+       <span class="font-bold text-md">${formattedDate}</span>
+       <span class="text-[10px] bg-white/20 px-2 py-0.5 rounded-full">ថ្ងៃនេះ</span>
+    </div>
 
-  // ប្រសិនបើ ទាំង "ចូល" និង "ចេញ" ខ្លី, ប្រើ Layout "2 ជួរ"
-  const useCompactLayout = isCheckInShort && isCheckOutShort;
+    <div class="p-4 grid grid-cols-2 gap-4 divide-x divide-gray-100">
+       <div class="flex flex-col items-center justify-center space-y-1">
+          <span class="text-xs text-gray-500 font-medium uppercase tracking-wider">ម៉ោងចូល</span>
+          ${checkInDisplay}
+       </div>
 
-  const card = document.createElement("div");
-  // យើងអាចធ្វើឱ្យ Card ថ្ងៃនេះ មើលទៅពិសេសបន្តិច (ឧ. ផ្ទៃពណ៌ខៀវอ่อน)
-  card.className =
-    "bg-blue-50 p-4 rounded-lg shadow border border-blue-200";
+       <div class="flex flex-col items-center justify-center space-y-1">
+          <span class="text-xs text-gray-500 font-medium uppercase tracking-wider">ម៉ោងចេញ</span>
+          ${checkOutDisplay}
+       </div>
+    </div>
+  `;
 
-  let contentHTML = "";
-
-  if (useCompactLayout) {
-    // Layout "2 ជួរ" (សម្រាប់ទិន្នន័យខ្លី)
-    contentHTML = `
-      <p class="text-sm font-semibold text-blue-800 mb-2">${formattedDate}</p>
-      <div class="grid grid-cols-2 gap-2">
-        <div class="text-sm">
-          <span class="text-blue-700">ចូល:</span> ${checkInDisplay}
-        </div>
-        <div class="text-sm">
-          <span class="text-blue-700">ចេញ:</span> ${checkOutDisplay}
-        </div>
-      </div>
-    `;
-  } else {
-    // Layout "3 ជួរ" (សម្រាប់ទិន្នន័យវែង)
-    contentHTML = `
-      <p class="text-sm font-semibold text-blue-800 mb-3">${formattedDate}</p>
-      <div class="flex flex-col space-y-2 text-sm">
-        <div>
-          <span class="text-blue-700 block text-xs">ចូល:</span>
-          ${checkInDisplay}
-        </div>
-        <div>
-          <span class="text-blue-700 block text-xs">ចេញ:</span>
-          ${checkOutDisplay}
-        </div>
-      </div>
-    `;
-
-    // ករណីពិសេស: បើជាច្បាប់ពេញមួយថ្ងៃ (អក្សរ "ចូល" និង "ចេញ" ដូចគ្នា)
-    if (
-      todayRecord.checkIn &&
-      todayRecord.checkOut &&
-      todayRecord.checkIn === todayRecord.checkOut &&
-      !isCheckInShort // ហើយវាជាអក្សរវែង
-    ) {
-      contentHTML = `
-        <p class="text-sm font-semibold text-blue-800 mb-2">${formattedDate}</p>
-        <div class="text-sm">
-          ${checkInDisplay} 
-        </div>
-      `;
-    }
-  }
-
-  card.innerHTML = contentHTML;
-  container.appendChild(card);
+  container.appendChild(card);
 }
+
+// --- 2. កែសម្រួល Function បង្ហាញប្រវត្តិប្រចាំខែ ---
+function renderMonthlyHistory() {
+  const container = document.getElementById("monthlyHistoryContainer");
+  const noDataRow = document.getElementById("noMonthlyHistoryRow");
+  if (!container || !noDataRow) return;
+  
+  container.innerHTML = "";
+
+  if (currentMonthRecords.length === 0) {
+    container.appendChild(noDataRow);
+    return;
+  }
+
+  currentMonthRecords.forEach((record) => {
+    const formattedDate = record.formattedDate || record.date;
+    const isToday = record.date === getTodayDateString();
+    
+    // Check In Logic
+    let checkInDisplay;
+    if (record.checkIn) {
+        checkInDisplay = `<span class="font-bold text-green-700 whitespace-nowrap">${record.checkIn}</span>`;
+    } else {
+        checkInDisplay = `<span class="text-red-500 text-xs font-medium">អវត្តមាន</span>`;
+    }
+
+    // Check Out Logic
+    let checkOutDisplay;
+    if (record.checkOut) {
+        checkOutDisplay = `<span class="font-bold text-red-700 whitespace-nowrap">${record.checkOut}</span>`;
+    } else {
+        checkOutDisplay = `<span class="text-gray-400 text-xs">---</span>`;
+    }
+
+    const card = document.createElement("div");
+    // កំណត់ Border ខាងឆ្វេងអោយដឹងថាជាថ្ងៃណា
+    const borderColor = isToday ? "border-l-4 border-l-blue-500" : "border-l-4 border-l-gray-300";
+    card.className = `bg-white p-3 rounded-lg shadow-sm border border-gray-100 mb-3 ${borderColor}`;
+
+    // រៀប Layout ជា 3 ជួរដេក (កាលបរិច្ឆេទ | ម៉ោងចូល | ម៉ោងចេញ)
+    card.innerHTML = `
+      <div class="flex items-center justify-between mb-2 border-b border-gray-50 pb-1">
+        <span class="font-bold text-gray-800 text-sm">${formattedDate}</span>
+        ${isToday ? '<span class="text-[10px] bg-blue-100 text-blue-600 px-2 py-0.5 rounded font-bold">Today</span>' : ''}
+      </div>
+      
+      <div class="grid grid-cols-2 gap-4">
+        <div class="flex justify-between items-center bg-gray-50 px-3 py-2 rounded">
+            <span class="text-xs text-gray-500">ចូល:</span>
+            ${checkInDisplay}
+        </div>
+        <div class="flex justify-between items-center bg-gray-50 px-3 py-2 rounded">
+            <span class="text-xs text-gray-500">ចេញ:</span>
+            ${checkOutDisplay}
+        </div>
+      </div>
+    `;
+
+    container.appendChild(card);
+  });
+}
+
+
 
 // --- *** កែប្រែ: Function នេះត្រូវបានសរសេរឡើងវិញទាំងស្រុង *** ---
 async function updateButtonState() {
