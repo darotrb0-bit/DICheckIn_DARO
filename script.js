@@ -1111,37 +1111,59 @@ async function fetchGoogleSheetData() {
   }
 }
 
+// ជំនួស function renderEmployeeList ទាំងមូល
 function renderEmployeeList(employees) {
-  employeeListContainer.innerHTML = "";
-  employeeListContainer.classList.remove("hidden");
+  const container = document.getElementById("employeeListContainer"); // ត្រូវប្រាកដថា HTML ថ្មីមាន ID នេះ
+  container.innerHTML = "";
+  
+  // បង្ហាញ Container ព្រោះក្នុង HTML ថ្មីយើងលែងប្រើ Dropdown absolute ហើយ
+  // យើងប្រើ List ធម្មតាវិញ
+  const contentArea = document.getElementById("employeeListContent");
+  contentArea.style.display = "block";
 
-  if (employees.length === 0) {
-    employeeListContainer.innerHTML = `<p class="text-center text-gray-500 p-3">រកមិនឃើញបុគ្គលិក (IT Support) ទេ។</p>`;
-    return;
-  }
+  if (employees.length === 0) {
+    container.innerHTML = `
+        <div class="flex flex-col items-center justify-center py-10 text-gray-400">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mb-2 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p class="text-sm font-medium">រកមិនឃើញទិន្នន័យ</p>
+        </div>`;
+    return;
+  }
 
-  employees.forEach((emp) => {
-    const card = document.createElement("div");
-    card.className =
-      "flex items-center p-3 rounded-xl cursor-pointer hover:bg-blue-50 transition-all shadow-md mb-2 bg-white";
-    card.innerHTML = `
-              <img src="${
-                emp.photoUrl ||
-                "https://placehold.co/48x48/e2e8f0/64748b?text=No+Img"
-              }" 
-                  alt="រូបថត" 
-                  class="w-12 h-12 rounded-full object-cover border-2 border-gray-100 mr-3"
-                  onerror="this.src='https://placehold.co/48x48/e2e8f0/64748b?text=Error'">
-              <div>
-                  <h3 class="text-md font-semibold text-gray-800">${emp.name}</h3>
-                  <p class="text-sm text-gray-500">ID: ${emp.id} | ក្រុម: ${
-      emp.group
-    }</p>
-              </div>
-          `;
-    card.onmousedown = () => selectUser(emp);
-    employeeListContainer.appendChild(card);
-  });
+  employees.forEach((emp) => {
+    const card = document.createElement("div");
+    // រចនាប័ទ្មថ្មី: Card តូចល្មម (Compact Row)
+    card.className = "group bg-white rounded-2xl p-3 shadow-sm border border-gray-100 flex items-center space-x-4 cursor-pointer hover:bg-blue-50 hover:border-blue-200 transition-all active:scale-[0.98]";
+    
+    card.innerHTML = `
+      <div class="relative">
+          <img src="${emp.photoUrl || "https://placehold.co/48x48/e2e8f0/64748b?text=Img"}" 
+               alt="Photo" 
+               class="w-14 h-14 rounded-full object-cover border-2 border-gray-100 group-hover:border-blue-300 transition-colors"
+               onerror="this.src='https://placehold.co/48x48/e2e8f0/64748b?text=Error'">
+          <div class="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full"></div>
+      </div>
+
+      <div class="flex-1 min-w-0 text-left">
+          <h3 class="text-base font-bold text-gray-800 group-hover:text-blue-700 truncate">${emp.name}</h3>
+          <div class="flex items-center space-x-2 mt-0.5">
+             <span class="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-0.5 rounded text-center min-w-[3rem]">ID: ${emp.id}</span>
+             <span class="text-xs text-gray-400 truncate">| ${emp.group}</span>
+          </div>
+      </div>
+
+      <div class="text-gray-300 group-hover:text-blue-500 pr-2">
+         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+         </svg>
+      </div>
+    `;
+    
+    card.onmousedown = () => selectUser(emp);
+    container.appendChild(card);
+  });
 }
 
 async function selectUser(employee) {
