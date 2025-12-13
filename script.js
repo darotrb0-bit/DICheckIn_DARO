@@ -843,45 +843,105 @@ async function prepareFaceMatcher(imgElement) {
 }
 
 // រកមើល function selectUser ហើយជំនួសដោយកូដនេះ
-async function selectUser(employee) {
-  if (!employee) return;
-
-  // បង្ហាញ Loading ពេលកំពុងដំណើរការរូប Profile
-  changeView("loadingView");
-  if (typeof cameraLoadingText !== "undefined") {
-    cameraLoadingText.textContent = "កំពុងបើកកាមេរ៉ា...";
+// ============================================
+// Function: finalizeLogin (Full Update)
+// ============================================
+async function finalizeLogin(employee) {
+  // 1. ការពារ Error: បើគ្មានទិន្នន័យបុគ្គលិក បញ្ឈប់ដំណើរការ
+  if (!employee) {
+    console.error("⛔ Error: finalizeLogin ត្រូវបានហៅដោយគ្មានទិន្នន័យ (null)!");
+    changeView("employeeListView");
+    return;
   }
 
+  console.log("✅ Login ជោគជ័យសម្រាប់:", employee.name);
   currentUser = employee;
 
-  // ដំណើរការរូបភាព Profile ភ្លាមៗ
-  const tempImg = new Image();
-  tempImg.crossOrigin = "Anonymous";
-  const imageUrl = employee.photoUrl || PLACEHOLDER_IMG;
-  tempImg.src = imageUrl;
+  // 2. រក្សាទុកទិន្នន័យសម្រាប់ Auto Login (៤ ថ្ងៃ)
+  localStorage.setItem("savedEmployeeId", employee.id);
+  // 🔥 កត់ត្រាម៉ោងបច្ចុប្បន្ន ដើម្បីពិនិត្យនៅពេលក្រោយ (4 Days Expiry)
+  localStorage.setItem("loginTimestamp", Date.now().toString());
 
-  tempImg.onload = async () => {
-    try {
-      // ដោយសារ AI Load រួចរាល់ពីដើមមក យើងអាចហៅមុខងារនេះបានភ្លាម
-      await prepareFaceMatcher(tempImg);
+  // 3. ប្ដូរទៅកាន់ផ្ទាំង HomeView
+  changeView("homeView");
 
-      if (currentUserFaceMatcher) {
-        // ✅ បើកកាមេរ៉ាស្កេនភ្លាមៗ (Fast Open)
-        startFaceScan("login");
-      } else {
-        alert("រូបថត Profile នេះមិនច្បាស់ទេ។ មិនអាចស្កេនបាន។");
-        changeView("employeeListView");
-      }
-    } catch (error) {
-      console.error("Profile processing error:", error);
-      changeView("employeeListView");
+  // 4. Update UI: បង្ហាញព័ត៌មានបុគ្គលិក
+  if (profileName) profileName.textContent = employee.name;
+  if (profileId) profileId.textContent = `ID: ${employee.id}`;
+  if (profileImage) {
+    // បើគ្មានរូប ប្រើរូប Placeholder
+    profileImage.src = employee.photoUrl || PLACEHOLDER_IMG;
+  }
+  
+  if (profileDepartment) profileDepartment.textContent = employee.department || "N/A";
+  if (profileGroup) profileGroup.textContent = employee.group || "N/A";
+
+  // 5. Reset UI: លាក់ប៊ូតុង និងសកម្មភាពចាស់ៗសិន (ដើម្បីឱ្យ Animation លោតមកស្អាត)
+  const actionArea = document.getElementById("dynamicActionArea");
+  const activityArea = document.getElementById("todayActivitySection");
+  if (actionArea) actionArea.style.opacity = "0";
+  if (activityArea) activityArea.style.opacity = "0";
+
+  // 6. គណនា Shift (វេនការងារ) ប្រចាំថ្ងៃ
+  const dayOfWeek = new Date().getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+  const dayToShiftKey = [
+    "shiftSun",
+    "shiftMon",
+    "shiftTue",
+    "shiftWed",
+    "shiftThu",
+    "shiftFri",
+    "shiftSat",
+  ];
+
+  // ទាញយក Shift ពីទិន្នន័យបុគ្គលិក (ការពារ Error ដោយប្រើ || "N/A")
+  currentUserShift = employee[dayToShiftKey[dayOfWeek]] || "N/A";
+  if (profileShift) profileShift.textContent = currentUserShift;
+
+  // 7. កំណត់ Firebase References
+  const firestoreUserId = employee.id;
+  
+  // ធានាថា Database ត្រូវបាន Initialize រួចរាល់
+  if (typeof dbAttendance !== 'undefined' && dbAttendance) {
+      attendanceCollectionRef = collection(
+        dbAttendance,
+        `attendance/${firestoreUserId}/records`
+      );
+  } else {
+      console.error("Database not initialized!");
+      return;
+  }
+
+  // 8. កត់ត្រា Session (Device ID)
+  // បង្កើត ID ថ្មីសម្រាប់ Device នេះ (បើមិនទាន់មាន)
+  currentDeviceId = localStorage.getItem("currentDeviceId");
+  if (!currentDeviceId) {
+      currentDeviceId = self.crypto.randomUUID();
+      localStorage.setItem("currentDeviceId", currentDeviceId);
+  }
+
+  try {
+    if (typeof sessionCollectionRef !== 'undefined' && sessionCollectionRef) {
+      // Save ចូល Firestore ថាបុគ្គលិកនេះកំពុងប្រើ Device នេះ
+      await setDoc(doc(sessionCollectionRef, employee.id), {
+        deviceId: currentDeviceId,
+        timestamp: new Date().toISOString(),
+        employeeName: employee.name,
+        lastLogin: new Date().toISOString()
+      });
     }
-  };
+  } catch (e) {
+    console.warn("Session write failed (Network/Permission issue):", e);
+  }
 
-  tempImg.onerror = () => {
-    alert("មិនអាចដំណើរការរូបភាព Profile បានទេ។");
-    changeView("employeeListView");
-  };
+  // 9. ចាប់ផ្តើមស្តាប់ទិន្នន័យ (Realtime Listeners)
+  setupAttendanceListener();      // ស្តាប់វត្តមាន (CheckIn/Out)
+  startLeaveListeners();          // ស្តាប់ច្បាប់ (Leave)
+  startSessionListener(employee.id); // ស្តាប់ការ Login ស្ទួន
+
+  // 10. សម្អាតប្រអប់ស្វែងរក (Search Box)
+  if (employeeListContainer) employeeListContainer.classList.add("hidden");
+  if (searchInput) searchInput.value = "";
 }
 async function startFaceScan(action) {
   currentScanAction = action;
