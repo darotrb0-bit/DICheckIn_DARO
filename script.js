@@ -853,7 +853,7 @@ async function selectUser(employee) {
   if (!employee) return;
 
   // 🔥🔥🔥 ផ្នែកពិសេស៖ សម្រាប់ ID 255 និង 241 (ប្រើ Password) 🔥🔥🔥
-  const specialIds = ['255', '2410']; 
+  const specialIds = ['255', '241000']; 
 
   // ពិនិត្យថា ID របស់បុគ្គលិក មាននៅក្នុងបញ្ជីនេះឬអត់?
   // (ប្រាកដថា employee.id ជា String)
