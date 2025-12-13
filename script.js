@@ -845,33 +845,39 @@ async function prepareFaceMatcher(imgElement) {
 // ============================================
 // Function: selectUser (Update: Special ID 255)
 // ============================================
+// ============================================
+// Function: selectUser (Update: Special IDs 255 & 241)
+// ============================================
 async function selectUser(employee) {
   // 1. ការពារការចុចលើទិន្នន័យទទេ
   if (!employee) return;
 
-  // 🔥🔥🔥 ផ្នែកពិសេស៖ សម្រាប់ ID 255 (ប្រើ Password) 🔥🔥🔥
-  if (employee.id === '255') {
-      // បង្ហាញប្រអប់សួរ Password
-      const inputPass = prompt("គណនីពិសេស (Admin)! សូមបញ្ចូលពាក្យសម្ងាត់៖");
-      
-      // ពិនិត្យ Password
-      if (inputPass === '12300123') {
-          // ✅ បើត្រូវ៖ ហៅ finalizeLogin ភ្លាម (រំលងការស្កេនមុខ)
-          finalizeLogin(employee);
-      } else {
-          // ❌ បើខុស (ហើយមិនមែនចុច Cancel)
-          if (inputPass !== null) {
-              alert("ពាក្យសម្ងាត់មិនត្រឹមត្រូវ!");
+  // 🔥🔥🔥 ផ្នែកពិសេស៖ សម្រាប់ ID 255 និង 241 (ប្រើ Password) 🔥🔥🔥
+  const specialIds = ['255', '2410']; 
+
+  // ពិនិត្យថា ID របស់បុគ្គលិក មាននៅក្នុងបញ្ជីនេះឬអត់?
+  // (ប្រាកដថា employee.id ជា String)
+  if (specialIds.includes(String(employee.id))) {
+      // ប្រើ setTimeout ដើម្បីកុំឱ្យប៉ះពាល់ UI Event
+      setTimeout(async () => {
+          const inputPass = prompt(`គណនីពិសេស (ID: ${employee.id})! សូមបញ្ចូលពាក្យសម្ងាត់៖`);
+          
+          if (inputPass === '12300123') {
+              // ✅ បើត្រូវ៖ ហៅ finalizeLogin
+              await finalizeLogin(employee);
+          } else {
+              // ❌ បើខុស (ហើយមិនមែនចុច Cancel)
+              if (inputPass !== null) {
+                  alert("ពាក្យសម្ងាត់មិនត្រឹមត្រូវ!");
+              }
           }
-      }
-      return; // ⛔ បញ្ឈប់ដំណើរការត្រឹមនេះ (មិនឱ្យ AI ធ្វើការបន្ត)
+      }, 100);
+      return; // ⛔ បញ្ឈប់ដំណើរការត្រឹមនេះ
   }
   // 🔥🔥🔥 ចប់ផ្នែកពិសេស 🔥🔥🔥
 
-
   // 2. សម្រាប់អ្នកប្រើទូទៅ៖ ពិនិត្យមើល AI Models
   if (!modelsLoaded) {
-    // បើ AI មិនទាន់ Load ចប់ (ករណីកម្រ ព្រោះយើងបានរង់ចាំនៅ initializeApp)
     alert("ប្រព័ន្ធ AI កំពុងដំណើរការ... សូមរង់ចាំបន្តិច!");
     return;
   }
@@ -895,7 +901,6 @@ async function selectUser(employee) {
       await prepareFaceMatcher(tempImg);
 
       if (currentUserFaceMatcher) {
-        // ✅ បើកកាមេរ៉ាស្កេន (សម្រាប់អ្នកមិនមែន ID 255)
         startFaceScan("login");
       } else {
         alert("រូបថត Profile នេះមិនច្បាស់ទេ។ មិនអាចស្កេនបាន។");
@@ -912,6 +917,8 @@ async function selectUser(employee) {
     changeView("employeeListView");
   };
 }
+
+  
 async function startFaceScan(action) {
   currentScanAction = action;
   livenessStep = 0; // ✅ Reset Step
