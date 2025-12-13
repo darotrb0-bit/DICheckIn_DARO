@@ -1133,19 +1133,22 @@ function processScanSuccess() {
 // ============================================
 
 async function handleCheckIn() {
-  if (actionBtnTitle) actionBtnTitle.textContent = "កំពុងដំណើរការ...";
+  if (actionBtnTitle) actionBtnTitle.textContent = "កំពុងស្វែងរកទីតាំង...";
 
   try {
-    // ❌ លុបចោល៖ ការស្នើសុំទីតាំង និងការពិនិត្យបរិវេណ
-    /*
+    // ✅ ១. ស្នើសុំទីតាំងពីទូរស័ព្ទ
     const coords = await getUserLocation();
-    if (!isInsideArea(coords.latitude, coords.longitude)) {
-      showMessage("ទីតាំង", "អ្នកនៅក្រៅបរិវេណក្រុមហ៊ុន");
-      updateButtonState();
-      return;
-    }
-    */
 
+    // ✅ ២. ផ្ទៀងផ្ទាត់ថា តើនៅក្នុងបរិវេណក្រុមហ៊ុនដែរឬទេ?
+    if (!isInsideArea(coords.latitude, coords.longitude)) {
+      showMessage("ទីតាំងមិនត្រឹមត្រូវ", "សូមលោកអ្នកស្ថិតនៅក្នុងបរិវេណក្រុមហ៊ុន ដើម្បី Check In។", true);
+      updateButtonState(); // Reset ប៊ូតុងវិញ
+      return; // បញ្ឈប់ដំណើរការ មិនឱ្យ Save ទៅ Firebase ទេ
+    }
+
+    // បើទីតាំងត្រូវហើយ បន្តដំណើរការ Save
+    if (actionBtnTitle) actionBtnTitle.textContent = "កំពុងរក្សាទុក...";
+    
     const now = new Date();
     const todayDocId = getTodayDateString(now);
 
@@ -1158,8 +1161,8 @@ async function handleCheckIn() {
       checkInTimestamp: now.toISOString(),
       formattedDate: formatDate(now),
       checkIn: formatTime(now),
-      // ✅ ដាក់ទីតាំងជា 0 ឬកំណត់សម្គាល់ថាបានបិទ
-      checkInLocation: { lat: 0, lon: 0, note: "Location Check Disabled" },
+      // ✅ រក្សាទុកទីតាំងជាក់ស្តែង
+      checkInLocation: { lat: coords.latitude, lon: coords.longitude },
     });
     
     // បន្ទាប់ពី Save រួច Refresh ប៊ូតុង
@@ -1167,24 +1170,29 @@ async function handleCheckIn() {
 
   } catch (e) {
     console.error(e);
-    showMessage("Error", "មិនអាច Check In បានទេ៖ " + e.message, true);
+    let msg = e.message;
+    if (e.message.includes("Location")) msg = "មិនអាចយកទីតាំងបានទេ។ សូមបើក GPS ។";
+    showMessage("Error", msg, true);
     updateButtonState();
   }
 }
 
 async function handleCheckOut() {
-  if (actionBtnTitle) actionBtnTitle.textContent = "កំពុងដំណើរការ...";
+  if (actionBtnTitle) actionBtnTitle.textContent = "កំពុងស្វែងរកទីតាំង...";
 
   try {
-    // ❌ លុបចោល៖ ការស្នើសុំទីតាំង និងការពិនិត្យបរិវេណ
-    /*
+    // ✅ ១. ស្នើសុំទីតាំងពីទូរស័ព្ទ
     const coords = await getUserLocation();
+
+    // ✅ ២. ផ្ទៀងផ្ទាត់ថា តើនៅក្នុងបរិវេណក្រុមហ៊ុនដែរឬទេ?
     if (!isInsideArea(coords.latitude, coords.longitude)) {
-      showMessage("ទីតាំង", "អ្នកនៅក្រៅបរិវេណក្រុមហ៊ុន");
+      showMessage("ទីតាំងមិនត្រឹមត្រូវ", "សូមលោកអ្នកស្ថិតនៅក្នុងបរិវេណក្រុមហ៊ុន ដើម្បី Check Out។", true);
       updateButtonState();
       return;
     }
-    */
+
+    // បើទីតាំងត្រូវហើយ បន្តដំណើរការ Save
+    if (actionBtnTitle) actionBtnTitle.textContent = "កំពុងរក្សាទុក...";
 
     const now = new Date();
     const todayDocId = getTodayDateString(now);
@@ -1200,8 +1208,8 @@ async function handleCheckOut() {
         formattedDate: formatDate(now),
         checkOutTimestamp: now.toISOString(),
         checkOut: formatTime(now),
-        // ✅ ដាក់ទីតាំងជា 0 ឬកំណត់សម្គាល់ថាបានបិទ
-        checkOutLocation: { lat: 0, lon: 0, note: "Location Check Disabled" },
+        // ✅ រក្សាទុកទីតាំងជាក់ស្តែង
+        checkOutLocation: { lat: coords.latitude, lon: coords.longitude },
       },
       { merge: true }
     );
@@ -1211,7 +1219,9 @@ async function handleCheckOut() {
 
   } catch (e) {
     console.error(e);
-    showMessage("Error", "មិនអាច Check Out បានទេ៖ " + e.message, true);
+    let msg = e.message;
+    if (e.message.includes("Location")) msg = "មិនអាចយកទីតាំងបានទេ។ សូមបើក GPS ។";
+    showMessage("Error", msg, true);
     updateButtonState();
   }
 }
@@ -1347,85 +1357,113 @@ async function updateButtonState() {
 // ✅ Function ថ្មី៖ ដំណើរការចូលប្រើប្រាស់ ក្រោយពេលស្កេនមុខជោគជ័យ
 // ✅ Function ថ្មី៖ ដំណើរការចូលប្រើប្រាស់ (កែសម្រួលដើម្បីការពារ Error)
 // រក function នេះក្នុង script.js ហើយកែដូចខាងក្រោម
+// ============================================
+// Function: finalizeLogin (Full Update)
+// ============================================
 async function finalizeLogin(employee) {
+  // 1. ការពារ Error: បើគ្មានទិន្នន័យបុគ្គលិក បញ្ឈប់ដំណើរការ
   if (!employee) {
-    console.error("⛔ Error: finalizeLogin ត្រូវបានហៅដោយគ្មានទិន្នន័យ!");
+    console.error("⛔ Error: finalizeLogin ត្រូវបានហៅដោយគ្មានទិន្នន័យ (null)!");
     changeView("employeeListView");
     return;
   }
 
   console.log("✅ Login ជោគជ័យសម្រាប់:", employee.name);
   currentUser = employee;
-  
-  // ✅ បន្ថែមបន្ទាត់នេះនៅទីនេះវិញ (Save ID តែពេលស្កេនជោគជ័យប៉ុណ្ណោះ)
-  localStorage.setItem("savedEmployeeId", employee.id); 
 
+  // 2. រក្សាទុកទិន្នន័យសម្រាប់ Auto Login (៤ ថ្ងៃ)
+  localStorage.setItem("savedEmployeeId", employee.id);
+  // 🔥 កត់ត្រាម៉ោងបច្ចុប្បន្ន ដើម្បីពិនិត្យនៅពេលក្រោយ (4 Days Expiry)
+  localStorage.setItem("loginTimestamp", Date.now().toString());
+
+  // 3. ប្ដូរទៅកាន់ផ្ទាំង HomeView
   changeView("homeView");
 
-  // កំណត់ UI ឡើងវិញ
+  // 4. Update UI: បង្ហាញព័ត៌មានបុគ្គលិក
   if (profileName) profileName.textContent = employee.name;
   if (profileId) profileId.textContent = `ID: ${employee.id}`;
   if (profileImage) {
+    // បើគ្មានរូប ប្រើរូប Placeholder
     profileImage.src = employee.photoUrl || PLACEHOLDER_IMG;
   }
+  
+  if (profileDepartment) profileDepartment.textContent = employee.department || "N/A";
+  if (profileGroup) profileGroup.textContent = employee.group || "N/A";
 
-  // Reset UI ផ្សេងៗ
+  // 5. Reset UI: លាក់ប៊ូតុង និងសកម្មភាពចាស់ៗសិន (ដើម្បីឱ្យ Animation លោតមកស្អាត)
   const actionArea = document.getElementById("dynamicActionArea");
   const activityArea = document.getElementById("todayActivitySection");
   if (actionArea) actionArea.style.opacity = "0";
   if (activityArea) activityArea.style.opacity = "0";
 
-  // គណនា Shift
-  const dayOfWeek = new Date().getDay();
+  // 6. គណនា Shift (វេនការងារ) ប្រចាំថ្ងៃ
+  const dayOfWeek = new Date().getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
   const dayToShiftKey = [
-    "shiftSun", "shiftMon", "shiftTue", "shiftWed", "shiftThu", "shiftFri", "shiftSat",
+    "shiftSun",
+    "shiftMon",
+    "shiftTue",
+    "shiftWed",
+    "shiftThu",
+    "shiftFri",
+    "shiftSat",
   ];
-  currentUserShift = employee[dayToShiftKey[dayOfWeek]] || "N/A";
 
-  // បង្ហាញព័ត៌មានបន្ថែម
-  if (profileDepartment) profileDepartment.textContent = employee.department || "N/A";
-  if (profileGroup) profileGroup.textContent = employee.group || "N/A";
+  // ទាញយក Shift ពីទិន្នន័យបុគ្គលិក (ការពារ Error ដោយប្រើ || "N/A")
+  currentUserShift = employee[dayToShiftKey[dayOfWeek]] || "N/A";
   if (profileShift) profileShift.textContent = currentUserShift;
 
-  // កំណត់ Firebase References
+  // 7. កំណត់ Firebase References
   const firestoreUserId = employee.id;
   
-  // ប្រាកដថា dbAttendance ត្រូវបាន Initialize រួចរាល់
-  if(typeof dbAttendance !== 'undefined' && dbAttendance) {
+  // ធានាថា Database ត្រូវបាន Initialize រួចរាល់
+  if (typeof dbAttendance !== 'undefined' && dbAttendance) {
       attendanceCollectionRef = collection(
         dbAttendance,
         `attendance/${firestoreUserId}/records`
       );
+  } else {
+      console.error("Database not initialized!");
+      return;
   }
 
-  // កត់ត្រា Session
-  currentDeviceId = self.crypto.randomUUID();
-  localStorage.setItem("currentDeviceId", currentDeviceId);
+  // 8. កត់ត្រា Session (Device ID)
+  // បង្កើត ID ថ្មីសម្រាប់ Device នេះ (បើមិនទាន់មាន)
+  currentDeviceId = localStorage.getItem("currentDeviceId");
+  if (!currentDeviceId) {
+      currentDeviceId = self.crypto.randomUUID();
+      localStorage.setItem("currentDeviceId", currentDeviceId);
+  }
 
   try {
-     if(typeof sessionCollectionRef !== 'undefined' && sessionCollectionRef) {
-        await setDoc(doc(sessionCollectionRef, employee.id), {
-          deviceId: currentDeviceId,
-          timestamp: new Date().toISOString(),
-          employeeName: employee.name,
-        });
-     }
+    if (typeof sessionCollectionRef !== 'undefined' && sessionCollectionRef) {
+      // Save ចូល Firestore ថាបុគ្គលិកនេះកំពុងប្រើ Device នេះ
+      await setDoc(doc(sessionCollectionRef, employee.id), {
+        deviceId: currentDeviceId,
+        timestamp: new Date().toISOString(),
+        employeeName: employee.name,
+        lastLogin: new Date().toISOString()
+      });
+    }
   } catch (e) {
-    console.warn("Session write failed:", e);
+    console.warn("Session write failed (Network/Permission issue):", e);
   }
 
-  // ចាប់ផ្តើមស្តាប់ទិន្នន័យ
-  setupAttendanceListener();
-  startLeaveListeners();
-  startSessionListener(employee.id);
+  // 9. ចាប់ផ្តើមស្តាប់ទិន្នន័យ (Realtime Listeners)
+  setupAttendanceListener();      // ស្តាប់វត្តមាន (CheckIn/Out)
+  startLeaveListeners();          // ស្តាប់ច្បាប់ (Leave)
+  startSessionListener(employee.id); // ស្តាប់ការ Login ស្ទួន
 
-  // សម្អាត Search
+  // 10. សម្អាតប្រអប់ស្វែងរក (Search Box)
   if (employeeListContainer) employeeListContainer.classList.add("hidden");
   if (searchInput) searchInput.value = "";
 }
 function logout() {
   currentUser = null;
+  
+  // ✅ Update: លុបទាំង ID និង Timestamp
   localStorage.removeItem("savedEmployeeId");
+  localStorage.removeItem("loginTimestamp"); // <--- បន្ថែមបន្ទាត់នេះ
+
   if (attendanceListener) attendanceListener();
   if (sessionListener) sessionListener();
   if (leaveCollectionListener) leaveCollectionListener();
@@ -1448,21 +1486,44 @@ function forceLogout(message) {
 
 function checkAutoLogin() {
   const savedId = localStorage.getItem("savedEmployeeId");
+  const loginTimestamp = localStorage.getItem("loginTimestamp");
 
-  if (savedId && allEmployees.length > 0) {
-    // ស្វែងរកទិន្នន័យបុគ្គលិកដែលមានស្រាប់
-    const savedEmp = allEmployees.find((e) => e.id === savedId);
+  // កំណត់រយៈពេល ៤ ថ្ងៃ (គិតជា Milliseconds)
+  // 4 ថ្ងៃ * 24 ម៉ោង * 60 នាទី * 60 វិនាទី * 1000
+  const EXPIRATION_TIME = 6 * 24 * 60 * 60 * 1000; 
 
-    if (savedEmp) {
-      console.log("🔄 Auto-login found user:", savedEmp.name);
-      // ហៅ finalizeLogin ផ្ទាល់ (រំលងការស្កេនមុខ)
-      finalizeLogin(savedEmp);
-    } else {
-      console.warn("User ID found but not in employee list (maybe deleted?)");
+  if (savedId && loginTimestamp) {
+    const now = Date.now();
+    const timeDiff = now - parseInt(loginTimestamp, 10);
+
+    // ប្រសិនបើពេលវេលាលើសពី ៤ ថ្ងៃ
+    if (timeDiff > EXPIRATION_TIME) {
+      console.log("⚠️ Session expired (More than 4 days). Require re-login.");
+      
+      // លុបការចងចាំចោល
+      localStorage.removeItem("savedEmployeeId");
+      localStorage.removeItem("loginTimestamp");
+      
+      // នៅផ្ទាំងបញ្ជីឈ្មោះ ដើម្បីឱ្យស្កេនមុខថ្មី
       changeView("employeeListView");
+      return;
+    }
+
+    // បើមិនទាន់ហួស ៤ ថ្ងៃទេ ធ្វើការ Login ធម្មតា
+    if (allEmployees.length > 0) {
+      const savedEmp = allEmployees.find((e) => e.id === savedId);
+
+      if (savedEmp) {
+        console.log("🔄 Auto-login active (Within 4 days):", savedEmp.name);
+        finalizeLogin(savedEmp);
+      } else {
+        changeView("employeeListView");
+      }
     }
   } else {
-    // បើគ្មាន ID ឬទិន្នន័យមិនទាន់មកដល់ -> នៅបញ្ជីឈ្មោះ
+    // បើគ្មានទិន្នន័យ ឬខ្វះ Timestamp -> ឱ្យ Login ថ្មី
+    localStorage.removeItem("savedEmployeeId"); // សម្អាតចោលការពារ Error
+    localStorage.removeItem("loginTimestamp");
     changeView("employeeListView");
   }
 }
