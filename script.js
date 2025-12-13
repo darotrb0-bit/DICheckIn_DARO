@@ -842,11 +842,76 @@ async function prepareFaceMatcher(imgElement) {
   }
 }
 
-// រកមើល function selectUser ហើយជំនួសដោយកូដនេះ
 // ============================================
-// Function: finalizeLogin (Full Update)
+// Function: selectUser (Update: Special ID 255)
 // ============================================
+async function selectUser(employee) {
+  // 1. ការពារការចុចលើទិន្នន័យទទេ
+  if (!employee) return;
 
+  // 🔥🔥🔥 ផ្នែកពិសេស៖ សម្រាប់ ID 255 (ប្រើ Password) 🔥🔥🔥
+  if (employee.id === '255') {
+      // បង្ហាញប្រអប់សួរ Password
+      const inputPass = prompt("គណនីពិសេស (Admin)! សូមបញ្ចូលពាក្យសម្ងាត់៖");
+      
+      // ពិនិត្យ Password
+      if (inputPass === '12300123') {
+          // ✅ បើត្រូវ៖ ហៅ finalizeLogin ភ្លាម (រំលងការស្កេនមុខ)
+          finalizeLogin(employee);
+      } else {
+          // ❌ បើខុស (ហើយមិនមែនចុច Cancel)
+          if (inputPass !== null) {
+              alert("ពាក្យសម្ងាត់មិនត្រឹមត្រូវ!");
+          }
+      }
+      return; // ⛔ បញ្ឈប់ដំណើរការត្រឹមនេះ (មិនឱ្យ AI ធ្វើការបន្ត)
+  }
+  // 🔥🔥🔥 ចប់ផ្នែកពិសេស 🔥🔥🔥
+
+
+  // 2. សម្រាប់អ្នកប្រើទូទៅ៖ ពិនិត្យមើល AI Models
+  if (!modelsLoaded) {
+    // បើ AI មិនទាន់ Load ចប់ (ករណីកម្រ ព្រោះយើងបានរង់ចាំនៅ initializeApp)
+    alert("ប្រព័ន្ធ AI កំពុងដំណើរការ... សូមរង់ចាំបន្តិច!");
+    return;
+  }
+
+  // 3. បង្ហាញ Loading
+  changeView("loadingView");
+  if (typeof cameraLoadingText !== "undefined") {
+    cameraLoadingText.textContent = "កំពុងបើកកាមេរ៉ា...";
+  }
+
+  currentUser = employee;
+
+  // 4. ដំណើរការរូបភាព Profile សម្រាប់ស្កេន
+  const tempImg = new Image();
+  tempImg.crossOrigin = "Anonymous";
+  const imageUrl = employee.photoUrl || PLACEHOLDER_IMG;
+  tempImg.src = imageUrl;
+
+  tempImg.onload = async () => {
+    try {
+      await prepareFaceMatcher(tempImg);
+
+      if (currentUserFaceMatcher) {
+        // ✅ បើកកាមេរ៉ាស្កេន (សម្រាប់អ្នកមិនមែន ID 255)
+        startFaceScan("login");
+      } else {
+        alert("រូបថត Profile នេះមិនច្បាស់ទេ។ មិនអាចស្កេនបាន។");
+        changeView("employeeListView");
+      }
+    } catch (error) {
+      console.error("Profile processing error:", error);
+      changeView("employeeListView");
+    }
+  };
+
+  tempImg.onerror = () => {
+    alert("មិនអាចដំណើរការរូបភាព Profile បានទេ។");
+    changeView("employeeListView");
+  };
+}
 async function startFaceScan(action) {
   currentScanAction = action;
   livenessStep = 0; // ✅ Reset Step
