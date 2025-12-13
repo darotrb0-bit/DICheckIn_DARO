@@ -179,7 +179,44 @@ const employeeListContent = $("employeeListContent");
 // ============================================
 // 4. HELPER FUNCTIONS
 // ============================================
+// Function ថ្មី៖ សម្រាប់បង្កើតអក្សរបង្ហាញម៉ោង (ថែមពាក្យ "មកយឺត" បើខុសលក្ខខណ្ឌ)
+function getDisplayTimeWithStatus(timeStr, shift, dateStr) {
+  if (!timeStr || timeStr === "--:--") return "--:--";
 
+  const timeDecimal = parseTimeStringToDecimal(timeStr);
+  if (timeDecimal === null) return timeStr;
+
+  const dateObj = new Date(dateStr);
+  const day = dateObj.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+  let isLate = false;
+
+  // 1. វេន "ពេញម៉ោង" ឬ "មួយព្រឹក"
+  if (shift === "ពេញម៉ោង" || shift === "មួយព្រឹក") {
+    // ថ្ងៃ ច័ន្ទ(1), ពុធ(3), សៅរ៍(6) => យឺតចាប់ពី 7:50 AM (7.833)
+    if (day === 1 || day === 3 || day === 6) {
+       if (timeDecimal >= (7 + 50/60)) isLate = true;
+    } 
+    // ថ្ងៃផ្សេងទៀត (អង្គារ, ព្រហ, សុក្រ, អាទិត្យ) => យឺតចាប់ពី 7:30 AM (7.5)
+    else {
+       if (timeDecimal >= 7.5) isLate = true;
+    }
+  } 
+  // 2. វេន "មួយរសៀល" => យឺតចាប់ពី 12:30 PM (12.5)
+  else if (shift === "មួយរសៀល") {
+    if (timeDecimal >= 12.5) isLate = true;
+  }
+  // 3. វេន "ពេលយប់" => យឺតចាប់ពី 5:30 PM (17.5)
+  else if (shift === "ពេលយប់") {
+    if (timeDecimal >= 17.5) isLate = true;
+  }
+
+  // បើមកយឺត បន្ថែមអក្សរ និងពណ៌ក្រហមបន្តិច
+  if (isLate) {
+    return `${timeStr} <span class="text-red-500 text-[10px]">(មកយឺត)</span>`;
+  }
+  
+  return timeStr;
+}
 function changeView(viewId) {
   [loadingView, employeeListView, homeView, historyView].forEach((v) => {
     if (v) v.style.display = "none";
@@ -459,14 +496,16 @@ function renderTodayHistory() {
   historyContainer.innerHTML = "";
 
   const todayString = getTodayDateString();
+  
+  // រកមើលទិន្នន័យថ្ងៃនេះ
   const todayRecord = currentMonthRecords.find(
     (record) => record.date === todayString
   );
 
-  // បើមិនទាន់មានទិន្នន័យ
+  // ករណីទី ១: មិនទាន់មានទិន្នន័យ (បង្ហាញប្រអប់ទទេ)
   if (!todayRecord) {
     historyContainer.innerHTML = `
-      <div class="bg-white/50 border border-dashed border-slate-300 rounded-2xl p-6 flex flex-col items-center justify-center text-center">
+      <div class="bg-white/50 border border-dashed border-slate-300 rounded-[1.5rem] p-6 flex flex-col items-center justify-center text-center animate-slide-up">
         <div class="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mb-3 text-slate-400">
           <i class="ph-duotone ph-clock text-2xl"></i>
         </div>
@@ -477,13 +516,28 @@ function renderTodayHistory() {
     return;
   }
 
-  // បើមានទិន្នន័យ (Design ថ្មី)
-  const checkIn = todayRecord.checkIn || "--:--";
+  // ករណីទី ២: មានទិន្នន័យ (បង្ហាញកាតស្អាត + គណនាម៉ោងយឺត)
+  
+  // ទាញយក Shift ពី Record (បើគ្មាន យកពី User បច្ចុប្បន្ន)
+  const currentShift = todayRecord.shift || currentUserShift;
+
+  // 🔥 ហៅ Helper Function ដើម្បីពិនិត្យមើលថា CheckIn យឺតឬអត់?
+  const displayCheckIn = getDisplayTimeWithStatus(
+      todayRecord.checkIn, 
+      currentShift,
+      todayRecord.date
+  );
+
   const checkOut = todayRecord.checkOut || "--:--";
   
-  // ពណ៌សម្រាប់ស្ថានភាព
-  const inColor = todayRecord.checkIn ? "text-green-600 bg-green-50 border-green-100" : "text-slate-400 bg-slate-50 border-slate-100";
-  const outColor = todayRecord.checkOut ? "text-red-600 bg-red-50 border-red-100" : "text-slate-400 bg-slate-50 border-slate-100";
+  // កំណត់ពណ៌
+  const inColor = todayRecord.checkIn 
+      ? "text-slate-800 bg-green-50 border-green-100" 
+      : "text-slate-400 bg-slate-50 border-slate-100";
+      
+  const outColor = todayRecord.checkOut 
+      ? "text-slate-800 bg-red-50 border-red-100" 
+      : "text-slate-400 bg-slate-50 border-slate-100";
 
   const card = document.createElement("div");
   card.className = "bg-white rounded-[1.5rem] p-5 shadow-sm border border-slate-100 relative overflow-hidden animate-slide-up";
@@ -500,6 +554,7 @@ function renderTodayHistory() {
       </div>
 
       <div class="grid grid-cols-2 gap-3 relative z-10">
+      
          <div class="flex flex-col p-3 rounded-2xl border ${inColor}">
             <div class="flex items-center gap-2 mb-2">
                <div class="w-6 h-6 rounded-full bg-white/60 flex items-center justify-center">
@@ -507,7 +562,7 @@ function renderTodayHistory() {
                </div>
                <span class="text-[10px] font-bold opacity-70">ម៉ោងចូល</span>
             </div>
-            <span class="text-lg font-bold tracking-tight">${checkIn}</span>
+            <span class="text-sm font-bold tracking-tight">${displayCheckIn}</span>
          </div>
 
          <div class="flex flex-col p-3 rounded-2xl border ${outColor}">
@@ -523,16 +578,21 @@ function renderTodayHistory() {
       
       <div class="absolute -bottom-6 -right-6 w-24 h-24 bg-gradient-to-br from-slate-50 to-slate-100 rounded-full blur-2xl z-0"></div>
   `;
+  
   historyContainer.appendChild(card);
 }
 
+// ============================================
+// Function: renderMonthlyHistory (Full Update)
+// ============================================
 function renderMonthlyHistory() {
   if (!monthlyHistoryContainer) return;
   monthlyHistoryContainer.innerHTML = "";
 
+  // ករណីគ្មានទិន្នន័យសម្រាប់ខែនេះ
   if (currentMonthRecords.length === 0) {
     monthlyHistoryContainer.innerHTML = `
-      <div class="flex flex-col items-center justify-center py-12 opacity-50">
+      <div class="flex flex-col items-center justify-center py-12 opacity-50 animate-slide-up">
         <i class="ph-duotone ph-calendar-slash text-5xl mb-3 text-slate-300"></i>
         <p class="text-sm font-medium text-slate-400">គ្មានទិន្នន័យសម្រាប់ខែនេះ</p>
       </div>`;
@@ -542,19 +602,30 @@ function renderMonthlyHistory() {
   const fragment = document.createDocumentFragment();
   
   currentMonthRecords.forEach((record, i) => {
-    const checkIn = record.checkIn ? record.checkIn : "--:--";
+    // 🔥 ហៅ Helper Function ដើម្បីគណនាម៉ោង និងបង្ហាញពាក្យ (មកយឺត)
+    // យើងប្រើ record.shift ដើម្បីដឹងថាថ្ងៃនោះគាត់វេនអ្វី (បានពីការ Save ក្នុង Database)
+    const displayCheckIn = getDisplayTimeWithStatus(
+        record.checkIn, 
+        record.shift, 
+        record.date
+    );
+
     const checkOut = record.checkOut ? record.checkOut : "--:--";
     
-    // Style សម្រាប់ម៉ោង (បើមានម៉ោង ពណ៌ដិត, បើអត់ ពណ៌ប្រផេះ)
-    const inStyle = record.checkIn ? "text-slate-800 font-bold" : "text-slate-300 font-medium";
-    const outStyle = record.checkOut ? "text-slate-800 font-bold" : "text-slate-300 font-medium";
-    
-    // Highlight ថ្ងៃនេះ
+    // ពិនិត្យថាជាថ្ងៃនេះឬអត់?
     const isToday = record.date === getTodayDateString();
+    
+    // កំណត់ Style សម្រាប់កាត
     const borderClass = isToday ? "border-blue-200 ring-4 ring-blue-50" : "border-slate-100";
-    const bgClass = isToday ? "bg-white" : "bg-white";
+    const bgClass = "bg-white"; // ពណ៌ផ្ទៃកាត
+    
+    // កំណត់ពណ៌សម្រាប់ម៉ោង (បើអត់ទាន់មានម៉ោង ដាក់ពណ៌ប្រផេះ)
+    const inStatusColor = record.checkIn ? "bg-green-500" : "bg-slate-300";
+    const outStatusColor = record.checkOut ? "bg-red-500" : "bg-slate-300";
+    const outTextStyle = record.checkOut ? "text-slate-800 font-bold" : "text-slate-300 font-medium";
 
     const card = document.createElement("div");
+    // list-item-anim គឺជា Animation ឱ្យវាលោតមកម្ដងមួយៗ
     card.className = `${bgClass} rounded-2xl p-4 border ${borderClass} mb-3 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.03)] list-item-anim relative`;
     card.style.animationDelay = `${i * 0.05}s`;
 
@@ -572,25 +643,30 @@ function renderMonthlyHistory() {
        </div>
 
        <div class="flex items-center bg-slate-50 rounded-xl p-1 border border-slate-100">
+          
           <div class="flex-1 flex flex-col items-center justify-center py-2 border-r border-slate-200 border-dashed">
              <span class="text-[9px] text-slate-400 font-bold uppercase mb-0.5">Check In</span>
              <div class="flex items-center gap-1.5">
-                <div class="w-1.5 h-1.5 rounded-full ${record.checkIn ? 'bg-green-500' : 'bg-slate-300'}"></div>
-                <span class="text-sm ${inStyle}">${checkIn}</span>
+                <div class="w-1.5 h-1.5 rounded-full ${inStatusColor}"></div>
+                <span class="text-sm font-bold text-slate-800 flex items-center">
+                    ${displayCheckIn}
+                </span>
              </div>
           </div>
 
           <div class="flex-1 flex flex-col items-center justify-center py-2">
              <span class="text-[9px] text-slate-400 font-bold uppercase mb-0.5">Check Out</span>
              <div class="flex items-center gap-1.5">
-                <div class="w-1.5 h-1.5 rounded-full ${record.checkOut ? 'bg-red-500' : 'bg-slate-300'}"></div>
-                <span class="text-sm ${outStyle}">${checkOut}</span>
+                <div class="w-1.5 h-1.5 rounded-full ${outStatusColor}"></div>
+                <span class="text-sm ${outTextStyle}">${checkOut}</span>
              </div>
           </div>
+
        </div>
     `;
     fragment.appendChild(card);
   });
+  
   monthlyHistoryContainer.appendChild(fragment);
 }
 
