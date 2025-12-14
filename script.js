@@ -61,7 +61,7 @@ const PLACEHOLDER_IMG = "https://placehold.co/80x80/e2e8f0/64748b?text=No+Img";
 
 const shiftSettings = {
   ពេញម៉ោង: {
-    startCheckIn: "07:00 AM",
+    startCheckIn: "06:40 AM",
     endCheckIn: "10:15 AM",
     startCheckOut: "04:30 PM",
     endCheckOut: "11:50 PM",
